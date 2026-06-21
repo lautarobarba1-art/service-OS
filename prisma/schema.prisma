@@ -21,6 +21,20 @@ enum ResourceType {
   EQUIPMENT
 }
 
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  WAIVED
+}
+
 model User {
   id          String       @id @db.Uuid
   name        String
@@ -29,6 +43,7 @@ model User {
   createdAt   DateTime     @default(now()) @db.Timestamptz(6)
   updatedAt   DateTime     @updatedAt @db.Timestamptz(6)
   memberships Membership[]
+  auditLogs   AuditLog[]
 }
 
 model Organization {
@@ -42,6 +57,12 @@ model Organization {
   updatedAt   DateTime     @updatedAt @db.Timestamptz(6)
   memberships Membership[]
   resources   Resource[]
+  services    Service[]
+  customers   Customer[]
+  auditLogs   AuditLog[]
+  availabilityRules AvailabilityRule[]
+  blockedDates      BlockedDate[]
+  bookings          Booking[]
 }
 
 model Membership {
@@ -67,6 +88,112 @@ model Resource {
   createdAt      DateTime     @default(now()) @db.Timestamptz(6)
   updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  availabilityRules AvailabilityRule[]
+  blockedDates      BlockedDate[]
+  bookings          Booking[]
 
   @@index([organizationId])
+}
+
+model Service {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String       @db.Uuid
+  name            String
+  description     String?
+  durationMinutes Int
+  price           Decimal      @db.Decimal(12, 2)
+  capacity        Int          @default(1)
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @db.Timestamptz(6)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bookings        Booking[]
+
+  @@index([organizationId])
+}
+
+model Customer {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  fullName       String
+  email          String?
+  phone          String?
+  notes          String       @default("")
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bookings       Booking[]
+
+  @@index([organizationId])
+}
+
+model AuditLog {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String       @db.Uuid
+  action         String
+  entityType     String
+  entityId       String       @db.Uuid
+  metadata       Json         @default("{}") @db.JsonB
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, createdAt])
+  @@index([userId])
+}
+
+model AvailabilityRule {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  resourceId     String       @db.Uuid
+  dayOfWeek      Int
+  startTime      DateTime     @db.Time(0)
+  endTime        DateTime     @db.Time(0)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  resource       Resource     @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([resourceId, dayOfWeek])
+}
+
+model BlockedDate {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String        @db.Uuid
+  resourceId     String?       @db.Uuid
+  date           DateTime      @db.Date
+  reason         String?
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  resource       Resource?     @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, date])
+  @@index([resourceId])
+}
+
+model Booking {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String        @db.Uuid
+  customerId     String        @db.Uuid
+  serviceId      String        @db.Uuid
+  resourceId     String        @db.Uuid
+  startDateTime  DateTime      @db.Timestamptz(6)
+  endDateTime    DateTime      @db.Timestamptz(6)
+  attendeesCount Int           @default(1)
+  status         BookingStatus @default(PENDING)
+  paymentStatus  PaymentStatus @default(UNPAID)
+  notes          String?
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(6)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  service        Service       @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  resource       Resource      @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, startDateTime])
+  @@index([resourceId, startDateTime, endDateTime])
+  @@index([serviceId, resourceId, startDateTime])
+  @@index([customerId])
 }

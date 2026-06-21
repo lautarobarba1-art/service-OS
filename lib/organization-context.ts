@@ -28,7 +28,7 @@ export const getOrganizationContext = cache(async function getOrganizationContex
   const cookieStore = await cookies();
   const selectedMembershipId = cookieStore.get(ACTIVE_MEMBERSHIP_COOKIE)?.value;
   const activeMembership =
-    memberships.find((membership) => membership.id === selectedMembershipId) ?? memberships[0] ?? null;
+    memberships.find((membership: { id: string | undefined; }) => membership.id === selectedMembershipId) ?? memberships[0] ?? null;
 
   return { user, memberships, activeMembership };
 });

@@ -19,6 +19,30 @@ export async function sendWelcomeEmail(email: string, name: string) {
   if (error) throw new Error(error.message);
 }
 
+export async function sendBookingNotification(input: {
+  kind: "created" | "cancelled";
+  email: string;
+  customerName: string;
+  serviceName: string;
+  organizationName: string;
+  localDateTime: string;
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn("RESEND_API_KEY no está configurada; se omitió el email de reserva.");
+    return;
+  }
+  const cancelled = input.kind === "cancelled";
+  const resend = new Resend(apiKey);
+  const { error } = await resend.emails.send({
+    from: "ServiceOS <onboarding@resend.dev>",
+    to: input.email,
+    subject: cancelled ? `Reserva cancelada · ${input.organizationName}` : `Reserva recibida · ${input.organizationName}`,
+    html: `<div style="font-family:Arial,sans-serif;color:#172019"><h1>${cancelled ? "Tu reserva fue cancelada" : "Recibimos tu reserva"}</h1><p>Hola ${escapeHtml(input.customerName)},</p><p><strong>${escapeHtml(input.serviceName)}</strong><br>${escapeHtml(input.localDateTime)}<br>${escapeHtml(input.organizationName)}</p></div>`,
+  });
+  if (error) throw new Error(error.message);
+}
+
 function escapeHtml(value: string) {
   return value.replace(
     /[&<>'"]/g,
