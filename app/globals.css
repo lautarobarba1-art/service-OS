@@ -170,6 +170,10 @@ button, select { cursor: pointer; }
 .booking-creator > summary { padding: 1rem 1.2rem; color: var(--green-dark); font-size: .82rem; font-weight: 850; cursor: pointer; }
 .booking-creator[open] > summary { border-bottom: 1px solid #d2ddd0; }
 .booking-creator > div { padding: 1.3rem; }
+.booking-availability-hint { display: grid; gap: .55rem; padding: .8rem; border: 1px solid #d6e0d3; border-radius: 8px; color: var(--green-dark); background: #f5f8f2; }
+.booking-availability-hint > strong { font-size: .72rem; }
+.booking-availability-hint > div { display: flex; flex-wrap: wrap; gap: .4rem; }
+.booking-availability-hint span { padding: .3rem .45rem; border-radius: 5px; color: #536359; background: #e6eee2; font-size: .65rem; font-weight: 750; }
 .calendar-wrap { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: white; }
 .calendar-weekdays, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); }
 .calendar-weekdays { color: #788279; background: #f4f7f3; font-size: .65rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }

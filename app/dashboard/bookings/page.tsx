@@ -4,7 +4,7 @@ import { BookingCalendar } from "@/components/booking-calendar";
 import { BookingForm } from "@/components/booking-form";
 import { getOrganizationContext } from "@/lib/organization-context";
 import { prisma } from "@/lib/prisma";
-import { utcToZonedParts, zonedDateTimeToUtc } from "@/lib/timezone";
+import { databaseTimeToString, utcToZonedParts, zonedDateTimeToUtc } from "@/lib/timezone";
 
 function parseMonth(value: string | undefined, timezone: string) {
   if (value && /^\d{4}-\d{2}$/.test(value)) {
@@ -36,7 +36,11 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
     }),
     prisma.customer.findMany({ where: { organizationId: activeMembership.organizationId }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } }),
     prisma.service.findMany({ where: { organizationId: activeMembership.organizationId, isActive: true }, select: { id: true, name: true, capacity: true }, orderBy: { name: "asc" } }),
-    prisma.resource.findMany({ where: { organizationId: activeMembership.organizationId, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.resource.findMany({
+      where: { organizationId: activeMembership.organizationId, isActive: true, availabilityRules: { some: {} } },
+      select: { id: true, name: true, availabilityRules: { select: { dayOfWeek: true, startTime: true, endTime: true }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } },
+      orderBy: { name: "asc" },
+    }),
   ]);
   const canCreate = activeMembership.role !== "VIEWER";
   const rows = bookings.map((booking) => {
@@ -51,7 +55,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="management-page bookings-page">
       <header className="management-heading booking-heading"><div><p className="eyebrow">OPERACIÓN</p><h1>Calendario</h1><p>Reservas expresadas en {timezone}.</p></div><div className="month-nav"><Link href={`/dashboard/bookings?month=${adjacentMonth(year, month, -1)}`}>←</Link><strong>{monthLabel}</strong><Link href={`/dashboard/bookings?month=${adjacentMonth(year, month, 1)}`}>→</Link></div></header>
-      {canCreate ? <details className="booking-creator"><summary>Nueva reserva</summary><div><BookingForm customers={customers.map((item) => ({ id: item.id, name: item.fullName }))} resources={resources} services={services} timezone={timezone} /></div></details> : null}
+      {canCreate ? <details className="booking-creator"><summary>Nueva reserva</summary><div><BookingForm customers={customers.map((item) => ({ id: item.id, name: item.fullName }))} resources={resources.map((resource) => ({ id: resource.id, name: resource.name, availability: resource.availabilityRules.map((rule) => ({ dayOfWeek: rule.dayOfWeek, startTime: databaseTimeToString(rule.startTime), endTime: databaseTimeToString(rule.endTime) })) }))} services={services} timezone={timezone} /></div></details> : null}
       <BookingCalendar bookings={rows} month={month} year={year} />
     </div>
   );

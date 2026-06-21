@@ -114,6 +114,8 @@ Representa un cliente de un negocio. No tiene acceso al sistema (entidad pasiva 
 | createdAt | TIMESTAMPTZ | |
 | updatedAt | TIMESTAMPTZ | |
 
+**Restricción:** Dentro de una misma organización, el email y el teléfono normalizados no pueden repetirse. Cuando ambos están ausentes, tampoco puede repetirse el nombre normalizado.
+
 ---
 
 ### AvailabilityRule

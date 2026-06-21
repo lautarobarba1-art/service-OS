@@ -21,6 +21,7 @@ import {
   localDateStringToDatabaseDate,
   localDateTimeStringToUtc,
   utcToLocalDateKey,
+  utcToZonedParts,
   validateSlotAvailability,
 } from "@/lib/timezone";
 import {
@@ -105,7 +106,22 @@ export async function createBookingAction(_: ActionState, formData: FormData): P
             blockedDates: blockedDates.map((item) => ({ date: databaseDateToLocalDateString(item.date), resourceId: item.resourceId })),
           });
           if (!availability.valid) {
-            const message = availability.reason === "BLOCKED_DATE" ? "La fecha seleccionada está bloqueada." : "El horario está fuera de la disponibilidad del recurso.";
+            let message = "El horario está fuera de la disponibilidad del recurso.";
+            if (availability.reason === "BLOCKED_DATE") {
+              message = "La fecha seleccionada está bloqueada.";
+            } else {
+              const localStart = utcToZonedParts(startDateTime, context.organization.timezone);
+              const dayNames = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+              const dayRules = rules.filter((rule) => rule.dayOfWeek === localStart.dayOfWeek);
+              if (!rules.length) {
+                message = "El recurso seleccionado no tiene disponibilidad configurada.";
+              } else if (!dayRules.length) {
+                message = `El recurso no tiene disponibilidad configurada para el ${dayNames[localStart.dayOfWeek]}.`;
+              } else {
+                const windows = dayRules.map((rule) => `${databaseTimeToString(rule.startTime)}–${databaseTimeToString(rule.endTime)}`).join(", ");
+                message = `Para el ${dayNames[localStart.dayOfWeek]}, el recurso está disponible de ${windows}. La reserva completa debe quedar dentro de ese rango.`;
+              }
+            }
             throw new BookingRuleError(availability.reason, message);
           }
           return operation();

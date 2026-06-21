@@ -25,6 +25,18 @@ describe("timezone helpers", () => {
     expect(utcToLocalDateKey(instant, "Asia/Tokyo")).toBe("2026-06-23");
   });
 
+  it("accepts the Buenos Aires alias stored by existing organizations", () => {
+    expect(utcToZonedParts("2026-06-22T13:00:00.000Z", "America/Buenos_Aires")).toMatchObject({ dayOfWeek: 1, hour: 10 });
+    expect(validateSlotAvailability({
+      startDateTime: "2026-06-22T13:00:00.000Z",
+      endDateTime: "2026-06-22T14:00:00.000Z",
+      timeZone: "America/Buenos_Aires",
+      resourceId: "resource-a",
+      availabilityRules: [{ dayOfWeek: 1, startTime: "09:00", endTime: "18:00" }],
+      blockedDates: [],
+    })).toEqual({ valid: true });
+  });
+
   it("converts local business time back to UTC", () => {
     const utc = zonedDateTimeToUtc(
       { year: 2026, month: 6, day: 22, hour: 12, minute: 30, second: 0 },

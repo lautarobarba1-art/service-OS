@@ -97,6 +97,8 @@ Cada membresía tiene un rol que determina qué acciones puede realizar el usuar
 ## Clientes
 
 - Un cliente pertenece a una organización.
+- Dentro de una organización no se permiten clientes con el mismo email normalizado ni con el mismo teléfono normalizado.
+- Si dos clientes no tienen email ni teléfono, tampoco pueden compartir el mismo nombre normalizado.
 - Un cliente solo puede usarse en reservas de su misma organización.
 - No se puede eliminar un cliente si tiene reservas activas o históricas. Los registros deben conservarse para trazabilidad.
 - Si el cliente tiene email, se le envían notificaciones de confirmación y cancelación.
