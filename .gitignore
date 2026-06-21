@@ -1,0 +1,10 @@
+/node_modules
+/.npm-cache
+/.next
+/out
+/.env
+/.env.local
+*.log
+*.tsbuildinfo
+.DS_Store
+prisma/dev.db
