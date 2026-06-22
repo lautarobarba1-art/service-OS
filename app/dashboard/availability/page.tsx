@@ -4,22 +4,26 @@ import { BlockedDateList } from "@/components/blocked-date-list";
 import { ResourceAvailabilitySelector } from "@/components/resource-availability-selector";
 import { WeeklyAvailability } from "@/components/weekly-availability";
 import { getOrganizationContext } from "@/lib/organization-context";
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 import { databaseDateToLocalDateString, databaseTimeToString } from "@/lib/timezone";
 
 export default async function AvailabilityPage({ searchParams }: { searchParams: Promise<{ resource?: string }> }) {
-  const { activeMembership } = await getOrganizationContext();
+  const { user, activeMembership } = await getOrganizationContext();
   if (!activeMembership) return null;
   const canManage = activeMembership.role === "OWNER" || activeMembership.role === "ADMIN";
-  const resources = await prisma.resource.findMany({ where: { organizationId: activeMembership.organizationId }, orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }], select: { id: true, name: true } });
+  const resources = await withAuthenticatedRls(user.id, (transaction) =>
+    transaction.resource.findMany({ where: { organizationId: activeMembership.organizationId }, orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }], select: { id: true, name: true } }),
+  );
   const requestedResource = (await searchParams).resource;
   const selectedResource = resources.find((resource) => resource.id === requestedResource) ?? resources[0];
   if (!selectedResource) return <div className="management-page"><p>No hay recursos configurados.</p></div>;
 
-  const [rules, blockedDates] = await Promise.all([
-    prisma.availabilityRule.findMany({ where: { organizationId: activeMembership.organizationId, resourceId: selectedResource.id }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] }),
-    prisma.blockedDate.findMany({ where: { organizationId: activeMembership.organizationId }, include: { resource: { select: { name: true } } }, orderBy: { date: "asc" } }),
-  ]);
+  const [rules, blockedDates] = await withAuthenticatedRls(user.id, (transaction) =>
+    Promise.all([
+      transaction.availabilityRule.findMany({ where: { organizationId: activeMembership.organizationId, resourceId: selectedResource.id }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] }),
+      transaction.blockedDate.findMany({ where: { organizationId: activeMembership.organizationId }, include: { resource: { select: { name: true } } }, orderBy: { date: "asc" } }),
+    ]),
+  );
   const ruleRows = rules.map((rule) => ({ id: rule.id, resourceId: rule.resourceId, dayOfWeek: rule.dayOfWeek, startTime: databaseTimeToString(rule.startTime), endTime: databaseTimeToString(rule.endTime) }));
   const blockedRows = blockedDates.map((item) => ({ id: item.id, resourceId: item.resourceId ?? "", resourceName: item.resource?.name ?? "", date: databaseDateToLocalDateString(item.date), reason: item.reason ?? "" }));
 

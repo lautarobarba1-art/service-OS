@@ -132,26 +132,74 @@ El negocio tiene visibilidad sobre sus operaciones sin salir del panel.
 
 ---
 
-## Fase 6 — API pública y extensibilidad
+## Fase 6 — Portal público y auto-reserva
 
-**Objetivo:** Permitir integraciones externas y automatizaciones.
+**Objetivo:** El cliente final puede reservar sin intervención del negocio y la reserva aparece automáticamente en ServiceOS.
 
-Incluye:
-- API REST pública con autenticación por API Key
-- Endpoints iniciales: listar servicios, listar disponibilidad, crear reserva
-- Rate limiting por API Key
-- Documentación de la API
-- Webhooks para eventos de reserva (creación, cancelación, cambio de estado)
+### Fase 6A — Contrato público y motor de slots
+
+- Migración compatible con datos existentes y backfill de referencias públicas
+- Configuración pública por organización: habilitado, intervalo de slots, anticipación mínima, horizonte de reserva y límite de cancelación
+- UI de configuración accesible solo a OWNER y ADMIN
+- Campo `Service.isPublic` para publicar servicios de forma explícita
+- Relación `ServiceResource` para declarar qué recursos pueden prestar cada servicio
+- Motor server-side que genera slots agregados por servicio sin exponer recursos internos
+- Asignación automática y determinista de un recurso elegible al confirmar
+- Reutilización de helpers de timezone, disponibilidad, bloqueos, capacidad y locking existentes
+- Rate limiting persistente por organización, IP anonimizada y acción
+- RLS para todas las tablas nuevas, sin acceso directo del rol `anon`
+
+### Fase 6B — Reserva como invitado
+
+- Página `/reservar/[slug]`
+- Listado exclusivo de servicios `isPublic = true` e `isActive = true`
+- Formulario público: nombre, email obligatorio, teléfono opcional y asistentes
+- Creación o reutilización automática de `Customer` dentro de la organización
+- Idempotencia obligatoria para que reintentos/doble click no dupliquen reservas
+- Server Action pública para la escritura; `organizationId` y `resourceId` se resuelven exclusivamente en servidor
+- Estado inicial configurable: `CONFIRMED` por defecto o `PENDING` si el negocio requiere aprobación
+- Código de referencia público no secuencial
+- Email de recepción/confirmación según el modo configurado, con enlace de gestión
+- Auditoría con actor público (`userId = null`) y origen de reserva
+
+### Fase 6C — Autogestión y endurecimiento
+
+- Enlace bearer con token aleatorio; en base se guarda solo su hash
+- Consulta mínima del detalle público de la reserva
+- Cancelación pública respetando la anticipación configurada
+- Reprogramación transaccional con nueva validación de disponibilidad y capacidad
+- Rotación/revocación del token cuando corresponda
+- Respuestas `no-store`, política `no-referrer` y exclusión del token de logs/analytics
+- Estados de error que no permitan enumerar clientes, reservas u organizaciones privadas
+- Protección anti-spam y límites diferenciados para consulta de slots y creación
+
+**Tests obligatorios en esta fase:**
+- Organización o servicio no publicado → no visible
+- Slots fuera de ventana, bloqueados o sin recurso elegible → no visibles
+- Slot válido → reserva pública confirmada y recurso asignado
+- Cliente existente por email/teléfono → reutilizado, no duplicado
+- Email y teléfono pertenecen a clientes distintos → rechazo genérico sin mezclar identidades
+- Dos requests con el mismo idempotency key → una sola reserva
+- Dos clientes sobre el último lugar → una aceptada y una rechazada
+- Token inválido, vencido o de otra reserva → sin acceso
+- Cancelación fuera del límite → rechazada
+- Reprogramación inválida → conserva la reserva original
+- Rate limit excedido → rechazado
+- Multi-tenancy: un slug/serviceId/token nunca permite cruzar organizaciones
+- Migración sobre datos existentes → no publica servicios ni rompe reservas previas
 
 **Resultado esperado:**
-Terceros pueden integrarse con ServiceOS sin acceder al panel.
+El negocio comparte un enlace y recibe reservas válidas sin cargarlas manualmente. El cliente final reserva, cancela y reprograma sin cuenta ni contraseña.
+
+**Condición para habilitar en producción:** El remitente de emails debe estar verificado para producción. El dominio de prueba de Resend puede usarse durante desarrollo, pero el portal no se habilita a clientes reales hasta contar con un remitente operativo.
 
 ---
 
 ## Fuera del roadmap actual
 
 - Integración con pasarelas de pago (Stripe, MercadoPago)
-- Portal de auto-reserva para clientes finales
+- API pública autenticada por API Key
+- Webhooks para integraciones externas
 - App mobile
 - IA operativa
 - Automatizaciones complejas

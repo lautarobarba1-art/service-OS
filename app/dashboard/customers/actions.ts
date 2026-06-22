@@ -9,10 +9,11 @@ import { actionError, requireOrganizationRole } from "@/lib/authorization";
 import {
   customerIdentityKeys,
   CustomerDuplicateError,
-  findCustomerDuplicate,
   normalizeCustomerEmail,
+  normalizeCustomerName,
+  normalizeCustomerPhone,
 } from "@/lib/customer-duplicates";
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 import { customerSchema, entityIdSchema, firstValidationError } from "@/lib/validations/operations";
 
 const OPERATORS = ["OWNER", "ADMIN", "STAFF"] as const;
@@ -30,12 +31,44 @@ async function lockAndCheckDuplicate(
     const lockKey = `customer:${organizationId}:${key}`;
     await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
   }
-  const existing = await transaction.customer.findMany({
-    where: { organizationId },
-    select: { id: true, fullName: true, email: true, phone: true },
-  });
-  const duplicate = findCustomerDuplicate(input, existing);
-  if (duplicate) throw duplicate;
+  const excludedId = input.id ?? null;
+  const email = normalizeCustomerEmail(input.email);
+  if (email) {
+    const duplicate = await transaction.$queryRaw<Array<{ id: string }>>`
+      SELECT c."id" FROM "Customer" c
+      WHERE c."organizationId" = CAST(${organizationId} AS uuid)
+        AND (${excludedId}::uuid IS NULL OR c."id" <> ${excludedId}::uuid)
+        AND lower(btrim(COALESCE(c."email", ''))) = ${email}
+      LIMIT 1
+    `;
+    if (duplicate.length) throw new CustomerDuplicateError("email", "Ya existe un cliente creado anteriormente con ese email.");
+  }
+
+  const phone = normalizeCustomerPhone(input.phone);
+  if (phone) {
+    const duplicate = await transaction.$queryRaw<Array<{ id: string }>>`
+      SELECT c."id" FROM "Customer" c
+      WHERE c."organizationId" = CAST(${organizationId} AS uuid)
+        AND (${excludedId}::uuid IS NULL OR c."id" <> ${excludedId}::uuid)
+        AND regexp_replace(COALESCE(c."phone", ''), '\D', '', 'g') = ${phone}
+      LIMIT 1
+    `;
+    if (duplicate.length) throw new CustomerDuplicateError("phone", "Ya existe un cliente creado anteriormente con ese teléfono.");
+  }
+
+  if (!email && !phone) {
+    const name = normalizeCustomerName(input.fullName);
+    const duplicate = await transaction.$queryRaw<Array<{ id: string }>>`
+      SELECT c."id" FROM "Customer" c
+      WHERE c."organizationId" = CAST(${organizationId} AS uuid)
+        AND (${excludedId}::uuid IS NULL OR c."id" <> ${excludedId}::uuid)
+        AND btrim(COALESCE(c."email", '')) = ''
+        AND regexp_replace(COALESCE(c."phone", ''), '\D', '', 'g') = ''
+        AND public.normalize_customer_name(c."fullName") = ${name}
+      LIMIT 1
+    `;
+    if (duplicate.length) throw new CustomerDuplicateError("fullName", "Ya existe un cliente sin datos de contacto con ese nombre.");
+  }
 }
 
 function customerInput(formData: FormData) {
@@ -53,7 +86,7 @@ export async function createCustomerAction(_: ActionState, formData: FormData): 
 
   try {
     const context = await requireOrganizationRole([...OPERATORS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       await lockAndCheckDuplicate(transaction, context.organizationId, parsed.data);
       const customer = await transaction.customer.create({
         data: {
@@ -82,7 +115,7 @@ export async function updateCustomerAction(_: ActionState, formData: FormData): 
 
   try {
     const context = await requireOrganizationRole([...OPERATORS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.customer.findFirst({ where: { id: id.data, organizationId: context.organizationId } });
       if (!previous) throw new Error("Customer not found in active organization");
       await lockAndCheckDuplicate(transaction, context.organizationId, { id: previous.id, ...parsed.data });
@@ -120,8 +153,10 @@ export async function deleteCustomerAction(formData: FormData) {
   if (!id.success) return;
   try {
     const context = await requireOrganizationRole(["OWNER", "ADMIN"]);
-    const customer = await prisma.customer.findFirst({ where: { id: id.data, organizationId: context.organizationId }, select: { id: true } });
-    if (customer) await prisma.customer.delete({ where: { id: customer.id } });
+    await withAuthenticatedRls(context.userId, async (transaction) => {
+      const customer = await transaction.customer.findFirst({ where: { id: id.data, organizationId: context.organizationId }, select: { id: true } });
+      if (customer) await transaction.customer.delete({ where: { id: customer.id } });
+    });
     revalidatePath("/dashboard/customers");
   } catch (error) {
     console.error(actionError(error));

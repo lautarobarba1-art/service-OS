@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { getDashboardMetrics, type DashboardPeriod } from "@/lib/dashboard-metrics";
 import { getOrganizationContext } from "@/lib/organization-context";
+import { withAuthenticatedRls } from "@/lib/prisma";
 import { formatUtcInTimeZone } from "@/lib/timezone";
 
 const periods: Array<{ value: DashboardPeriod; label: string }> = [
@@ -19,16 +20,18 @@ const statusMeta = [
 ];
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
-  const { activeMembership } = await getOrganizationContext();
+  const { user, activeMembership } = await getOrganizationContext();
   if (!activeMembership) return null;
   if (activeMembership.role !== "OWNER" && activeMembership.role !== "ADMIN") redirect("/dashboard/bookings");
   const requestedPeriod = (await searchParams).period;
   const period: DashboardPeriod = requestedPeriod === "day" || requestedPeriod === "week" || requestedPeriod === "month" ? requestedPeriod : "week";
-  const metrics = await getDashboardMetrics({
-    organizationId: activeMembership.organizationId,
-    timeZone: activeMembership.organization.timezone,
-    period,
-  });
+  const metrics = await withAuthenticatedRls(user.id, (transaction) =>
+    getDashboardMetrics({
+      organizationId: activeMembership.organizationId,
+      timeZone: activeMembership.organization.timezone,
+      period,
+    }, transaction),
+  );
   const statusSeries = statusMeta.map((item) => ({ label: item.label, color: item.color, value: metrics.statusCounts[item.key] }));
   const maxServiceCount = Math.max(1, ...metrics.topServices.map((item) => item.count));
 

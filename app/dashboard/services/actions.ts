@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { ActionState } from "@/lib/action-state";
 import { toAuditMetadata } from "@/lib/audit";
 import { actionError, requireOrganizationRole } from "@/lib/authorization";
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 import { entityIdSchema, firstValidationError, serviceSchema } from "@/lib/validations/operations";
 
 const MANAGERS = ["OWNER", "ADMIN"] as const;
@@ -26,7 +26,7 @@ export async function createServiceAction(_: ActionState, formData: FormData): P
 
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const service = await transaction.service.create({
         data: { ...parsed.data, organizationId: context.organizationId },
       });
@@ -56,7 +56,7 @@ export async function updateServiceAction(_: ActionState, formData: FormData): P
 
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.service.findFirst({
         where: { id: id.data, organizationId: context.organizationId },
       });
@@ -89,7 +89,7 @@ export async function toggleServiceAction(formData: FormData) {
 
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.service.findFirst({ where: { id: id.data, organizationId: context.organizationId } });
       if (!previous) throw new Error("Service not found in active organization");
       const updated = await transaction.service.update({ where: { id: previous.id }, data: { isActive: !previous.isActive } });

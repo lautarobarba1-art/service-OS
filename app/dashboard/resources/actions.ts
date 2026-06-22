@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { ActionState } from "@/lib/action-state";
 import { toAuditMetadata } from "@/lib/audit";
 import { actionError, requireOrganizationRole } from "@/lib/authorization";
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 import { entityIdSchema, firstValidationError, resourceSchema } from "@/lib/validations/operations";
 
 const MANAGERS = ["OWNER", "ADMIN"] as const;
@@ -19,7 +19,7 @@ export async function createResourceAction(_: ActionState, formData: FormData): 
   if (!parsed.success) return { error: firstValidationError(parsed.error) };
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const resource = await transaction.resource.create({ data: { ...parsed.data, organizationId: context.organizationId } });
       await transaction.auditLog.create({
         data: { organizationId: context.organizationId, userId: context.userId, action: "resource.created", entityType: "Resource", entityId: resource.id, metadata: toAuditMetadata({ new: parsed.data }) },
@@ -39,7 +39,7 @@ export async function updateResourceAction(_: ActionState, formData: FormData): 
   if (!parsed.success) return { error: firstValidationError(parsed.error) };
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.resource.findFirst({ where: { id: id.data, organizationId: context.organizationId } });
       if (!previous) throw new Error("Resource not found in active organization");
       const updated = await transaction.resource.update({ where: { id: previous.id }, data: parsed.data });
@@ -65,7 +65,7 @@ export async function toggleResourceAction(formData: FormData) {
   if (!id.success) return;
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.resource.findFirst({ where: { id: id.data, organizationId: context.organizationId } });
       if (!previous || previous.isDefault) return;
       const updated = await transaction.resource.update({ where: { id: previous.id }, data: { isActive: !previous.isActive } });
@@ -88,8 +88,10 @@ export async function deleteResourceAction(formData: FormData) {
   if (!id.success) return;
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    const resource = await prisma.resource.findFirst({ where: { id: id.data, organizationId: context.organizationId }, select: { id: true, isDefault: true } });
-    if (resource && !resource.isDefault) await prisma.resource.delete({ where: { id: resource.id } });
+    await withAuthenticatedRls(context.userId, async (transaction) => {
+      const resource = await transaction.resource.findFirst({ where: { id: id.data, organizationId: context.organizationId }, select: { id: true, isDefault: true } });
+      if (resource && !resource.isDefault) await transaction.resource.delete({ where: { id: resource.id } });
+    });
     revalidatePath("/dashboard/resources");
   } catch (error) {
     console.error(actionError(error));

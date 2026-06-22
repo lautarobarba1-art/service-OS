@@ -3,7 +3,7 @@ import Link from "next/link";
 import { BookingCalendar } from "@/components/booking-calendar";
 import { BookingForm } from "@/components/booking-form";
 import { getOrganizationContext } from "@/lib/organization-context";
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 import { databaseTimeToString, utcToZonedParts, zonedDateTimeToUtc } from "@/lib/timezone";
 
 function parseMonth(value: string | undefined, timezone: string) {
@@ -21,7 +21,7 @@ function adjacentMonth(year: number, month: number, delta: number) {
 }
 
 export default async function BookingsPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
-  const { activeMembership } = await getOrganizationContext();
+  const { user, activeMembership } = await getOrganizationContext();
   if (!activeMembership) return null;
   const timezone = activeMembership.organization.timezone;
   const { year, month } = parseMonth((await searchParams).month, timezone);
@@ -29,19 +29,21 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
   const rangeStart = zonedDateTimeToUtc({ year, month, day: 1, hour: 0, minute: 0, second: 0 }, timezone);
   const rangeEnd = zonedDateTimeToUtc({ year: next.year, month: next.month, day: 1, hour: 0, minute: 0, second: 0 }, timezone);
 
-  const [bookings, customers, services, resources] = await Promise.all([
-    prisma.booking.findMany({
-      where: { organizationId: activeMembership.organizationId, startDateTime: { gte: rangeStart, lt: rangeEnd } },
-      include: { customer: true, service: true }, orderBy: { startDateTime: "asc" },
-    }),
-    prisma.customer.findMany({ where: { organizationId: activeMembership.organizationId }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } }),
-    prisma.service.findMany({ where: { organizationId: activeMembership.organizationId, isActive: true }, select: { id: true, name: true, capacity: true }, orderBy: { name: "asc" } }),
-    prisma.resource.findMany({
-      where: { organizationId: activeMembership.organizationId, isActive: true, availabilityRules: { some: {} } },
-      select: { id: true, name: true, availabilityRules: { select: { dayOfWeek: true, startTime: true, endTime: true }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+  const [bookings, customers, services, resources] = await withAuthenticatedRls(user.id, (transaction) =>
+    Promise.all([
+      transaction.booking.findMany({
+        where: { organizationId: activeMembership.organizationId, startDateTime: { gte: rangeStart, lt: rangeEnd } },
+        include: { customer: true, service: true }, orderBy: { startDateTime: "asc" },
+      }),
+      transaction.customer.findMany({ where: { organizationId: activeMembership.organizationId }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } }),
+      transaction.service.findMany({ where: { organizationId: activeMembership.organizationId, isActive: true }, select: { id: true, name: true, capacity: true }, orderBy: { name: "asc" } }),
+      transaction.resource.findMany({
+        where: { organizationId: activeMembership.organizationId, isActive: true, availabilityRules: { some: {} } },
+        select: { id: true, name: true, availabilityRules: { select: { dayOfWeek: true, startTime: true, endTime: true }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } },
+        orderBy: { name: "asc" },
+      }),
+    ]),
+  );
   const canCreate = activeMembership.role !== "VIEWER";
   const rows = bookings.map((booking) => {
     const local = utcToZonedParts(booking.startDateTime, timezone);

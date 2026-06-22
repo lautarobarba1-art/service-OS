@@ -130,14 +130,14 @@ model Customer {
 model AuditLog {
   id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String       @db.Uuid
-  userId         String       @db.Uuid
+  userId         String?      @db.Uuid
   action         String
   entityType     String
   entityId       String       @db.Uuid
   metadata       Json         @default("{}") @db.JsonB
   createdAt      DateTime     @default(now()) @db.Timestamptz(6)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([organizationId, createdAt])
   @@index([userId])

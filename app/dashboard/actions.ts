@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ACTIVE_MEMBERSHIP_COOKIE, getAuthenticatedUser } from "@/lib/organization-context";
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 
 export async function switchOrganizationAction(formData: FormData) {
   const membershipId = formData.get("membershipId");
@@ -13,10 +13,12 @@ export async function switchOrganizationAction(formData: FormData) {
   const user = await getAuthenticatedUser();
   // membershipId is only a selector token. The organization is always resolved
   // server-side from a membership owned by the authenticated user.
-  const membership = await prisma.membership.findFirst({
-    where: { id: membershipId, userId: user.id },
-    select: { id: true },
-  });
+  const membership = await withAuthenticatedRls(user.id, (transaction) =>
+    transaction.membership.findFirst({
+      where: { id: membershipId, userId: user.id },
+      select: { id: true },
+    }),
+  );
   if (!membership) return;
 
   const cookieStore = await cookies();

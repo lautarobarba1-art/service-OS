@@ -39,6 +39,22 @@ Construir una primera versión funcional que permita:
 - Enviar emails transaccionales básicos (confirmación y cancelación)
 - Registrar acciones importantes en auditoría
 
+Este MVP operativo se considera completado con las Fases 1 a 5. La siguiente release del producto se enfoca en automatizar la captación de reservas para reducir la carga manual del negocio.
+
+## Objetivo de la release de auto-reserva
+
+Construir un flujo público donde un cliente final pueda:
+
+- Abrir la página pública del negocio mediante su `slug`
+- Ver únicamente servicios activos publicados por la organización
+- Consultar slots reales calculados en la timezone del negocio
+- Reservar como invitado, sin crear contraseña ni cuenta en Supabase Auth
+- Ser creado o reutilizado automáticamente como `Customer` por email/teléfono
+- Recibir constancia de la solicitud o confirmación, según la política del negocio, y un enlace seguro para gestionar su reserva
+- Cancelar o reprogramar dentro de las políticas de anticipación del negocio
+
+El negocio recibe la reserva automáticamente en su calendario. La creación pública reutiliza exactamente las mismas validaciones de disponibilidad, bloqueos, capacidad, locking y multi-tenancy que una reserva interna.
+
 ## Fuera del MVP
 
 - Integración con pasarelas de pago reales (Stripe, MercadoPago, etc.)
@@ -49,7 +65,6 @@ Construir una primera versión funcional que permita:
 - Chatbot
 - Automatizaciones complejas
 - Integraciones externas avanzadas
-- Portal de auto-reserva para clientes finales
 
 ## Stack
 
@@ -86,3 +101,15 @@ El MVP se considera terminado cuando un usuario puede:
 12. Ver métricas básicas en el dashboard.
 13. Confirmar que el cliente recibe un email de confirmación.
 14. Confirmar que el aislamiento multi-tenant es correcto: un usuario no accede a datos de otra organización.
+
+## Criterio de éxito de la release de auto-reserva
+
+1. Un negocio puede habilitar o deshabilitar su página pública.
+2. Puede decidir qué servicios se publican y qué recursos pueden prestarlos.
+3. Un cliente invitado puede ver únicamente slots realmente reservables.
+4. Dos clientes intentando tomar el último lugar producen una sola reserva exitosa.
+5. Reintentar el mismo envío no crea reservas ni clientes duplicados.
+6. La reserva pública aparece automáticamente en el calendario del negocio.
+7. El cliente puede cancelar o reprogramar mediante un enlace seguro y dentro del límite permitido.
+8. Ningún dato interno, nota, membresía ni identificador de otra organización queda expuesto públicamente.
+9. El rate limiting bloquea abuso sin afectar el flujo normal.

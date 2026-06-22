@@ -1,13 +1,15 @@
 import { ServiceForm } from "@/components/service-form";
 import { ServiceTable } from "@/components/service-table";
 import { getOrganizationContext } from "@/lib/organization-context";
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 
 export default async function ServicesPage() {
-  const { activeMembership } = await getOrganizationContext();
+  const { user, activeMembership } = await getOrganizationContext();
   if (!activeMembership) return null;
   const canManage = activeMembership.role === "OWNER" || activeMembership.role === "ADMIN";
-  const services = await prisma.service.findMany({ where: { organizationId: activeMembership.organizationId }, orderBy: { createdAt: "desc" } });
+  const services = await withAuthenticatedRls(user.id, (transaction) =>
+    transaction.service.findMany({ where: { organizationId: activeMembership.organizationId }, orderBy: { createdAt: "desc" } }),
+  );
   const rows = services.map((service) => ({
     id: service.id, name: service.name, description: service.description ?? "", durationMinutes: service.durationMinutes,
     price: service.price.toFixed(2), capacity: service.capacity, isActive: service.isActive,

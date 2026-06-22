@@ -8,11 +8,13 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:integration": "vitest run tests/integration",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "node --env-file=.env.local node_modules/prisma/build/index.js migrate dev",
-    "prisma:deploy": "node --env-file=.env.local node_modules/prisma/build/index.js migrate deploy"
+    "prisma:deploy": "node --env-file=.env.local node_modules/prisma/build/index.js migrate deploy",
+    "prisma:test:deploy": "node --env-file=.env.test.local node_modules/prisma/build/index.js migrate deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

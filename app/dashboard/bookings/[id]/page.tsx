@@ -4,19 +4,21 @@ import { notFound } from "next/navigation";
 import { BookingNotesForm, BookingPaymentForm, BookingStatusActions } from "@/components/booking-detail-actions";
 import { getAllowedBookingTransitions } from "@/lib/booking-rules";
 import { getOrganizationContext } from "@/lib/organization-context";
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 import { formatUtcInTimeZone } from "@/lib/timezone";
 import { entityIdSchema } from "@/lib/validations/operations";
 
 export default async function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { activeMembership } = await getOrganizationContext();
+  const { user, activeMembership } = await getOrganizationContext();
   if (!activeMembership) return null;
   const { id } = await params;
   if (!entityIdSchema.safeParse(id).success) notFound();
-  const booking = await prisma.booking.findFirst({
-    where: { id, organizationId: activeMembership.organizationId },
-    include: { customer: true, service: true, resource: true },
-  });
+  const booking = await withAuthenticatedRls(user.id, (transaction) =>
+    transaction.booking.findFirst({
+      where: { id, organizationId: activeMembership.organizationId },
+      include: { customer: true, service: true, resource: true },
+    }),
+  );
   if (!booking) notFound();
   const timezone = activeMembership.organization.timezone;
   const transitions = getAllowedBookingTransitions(booking.status, activeMembership.role);

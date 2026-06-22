@@ -68,6 +68,10 @@ RLS actúa como red de seguridad si una validación server-side falla o es omiti
 
 Toda tabla operativa requiere una política de RLS explícita antes de estar en producción. No se habilitan tablas sin política definida.
 
+La URL de Prisma conecta con el rol privilegiado de Supabase, que normalmente tiene `BYPASSRLS`. Por eso las operaciones autenticadas no usan el cliente global directamente: `withAuthenticatedRls()` abre una transacción, carga `request.jwt.claim.sub`, asume `authenticated` con `SET LOCAL ROLE` y ejecuta allí la operación. Tanto el rol como los claims desaparecen al cerrar la transacción, lo que lo hace compatible con el transaction pooler.
+
+El onboarding conserva una transacción privilegiada explícita porque todavía no existe una membresía contra la cual evaluar RLS. Es un caso acotado: la identidad proviene de `supabase.auth.getUser()` y todos los registros iniciales se crean atómicamente.
+
 ---
 
 ## Decisión 5 — Timezone: UTC en base de datos, conversión en servidor
@@ -140,7 +144,7 @@ No se implementa ninguna funcionalidad de inteligencia artificial en la primera 
 
 ### Motivo
 
-La IA tiene más valor cuando opera sobre datos reales del negocio. El MVP necesita primero construir el núcleo de datos: reservas, clientes, servicios, estados y métricas. Sin ese núcleo, la IA no tiene contexto suficiente para generar valor. Se evalúa su incorporación a partir de la Fase 6.
+La IA tiene más valor cuando opera sobre datos reales del negocio. El MVP necesita primero construir el núcleo de datos: reservas, clientes, servicios, estados y métricas. Sin ese núcleo, la IA no tiene contexto suficiente para generar valor. Se evaluará después de validar la auto-reserva pública.
 
 ---
 
@@ -172,3 +176,97 @@ Poner tests al final del roadmap significa que no se escriben. Las reglas de val
 - Fase 4 (Reservas): tests de validación completa de creación, máquina de estados, y aislamiento multi-tenant.
 
 Los tests del dashboard, UI y flujos de email tienen menor prioridad y pueden incorporarse progresivamente.
+
+---
+
+## Decisión 12 — Auto-reserva antes que API pública
+
+La Fase 6 prioriza un portal público para clientes finales. La API por API Key y los webhooks pasan a una fase posterior.
+
+### Motivo
+
+El panel interno ordena la operación, pero no elimina la carga manual. El mayor incremento de valor inmediato es permitir que el cliente cree una reserva válida por sí mismo usando el motor ya construido.
+
+### Consecuencia
+
+La superficie inicial es producto final (`/reservar/[slug]`), no una API genérica. Reglas y servicios de dominio se diseñan reutilizables para una API futura.
+
+---
+
+## Decisión 13 — Cliente invitado sin Supabase Auth
+
+El cliente final reserva con nombre, email y teléfono opcional. No crea contraseña, sesión ni fila en `auth.users`.
+
+### Motivo
+
+Obligar a crear cuenta agrega fricción. `Customer` sigue siendo una entidad pasiva del tenant y se reutiliza por contacto normalizado.
+
+### Seguridad
+
+La autogestión usa un enlace bearer aleatorio. Solo se guarda el hash y vencimiento del token, nunca su valor plano.
+
+---
+
+## Decisión 14 — Elegibilidad explícita y asignación automática de recurso
+
+Se incorpora `ServiceResource` para declarar qué recursos pueden prestar cada servicio. El cliente público no elige recurso.
+
+### Motivo
+
+Exponer staff/salas aumenta complejidad y filtra estructura interna. Sin relación explícita, el sistema podría asignar un servicio a un recurso incompatible.
+
+### Algoritmo inicial
+
+El motor agrega slots de los recursos elegibles. Al confirmar, prueba primero el recurso default elegible y luego por UUID, siempre bajo lock y revalidación completa. La estrategia podrá evolucionar sin cambiar el contrato público.
+
+---
+
+## Decisión 15 — Confirmación pública configurable
+
+`Organization.bookingConfirmationMode` admite `AUTO_CONFIRM` y `MANUAL_APPROVAL`, con default `AUTO_CONFIRM`.
+
+### Motivo
+
+Auto-confirmar entrega la automatización buscada cuando disponibilidad y capacidad son autoritativas. El modo PENDING cubre negocios que necesitan aprobación.
+
+---
+
+## Decisión 16 — Idempotencia y referencias no secuenciales
+
+Cada submit público usa una key UUID y un hash canónico del payload. La combinación (`organizationId`, `idempotencyKey`) es única. Toda reserva recibe además un `referenceCode` aleatorio.
+
+### Motivo
+
+Reintentos de red y dobles clicks son normales. Idempotencia evita duplicar cliente, reserva, auditoría y email. Una referencia aleatoria evita enumerar volumen o IDs internos.
+
+---
+
+## Decisión 17 — Rate limiting persistente en Postgres
+
+Los límites públicos usan buckets en `PublicRateLimit`, actualizados atómicamente. La IP se transforma con HMAC usando un secreto de entorno antes de persistirla.
+
+El secreto se configura como `PUBLIC_RATE_LIMIT_SECRET`; es independiente de las claves de Supabase y Resend y debe existir en local y Vercel antes de habilitar el portal.
+
+### Motivo
+
+La memoria de una Function de Vercel no es compartida ni durable. Postgres ya está disponible y evita sumar otro proveedor en esta release.
+
+### Trade-off
+
+Agrega escrituras. Los buckets expiran y la implementación queda detrás de una interfaz para migrarla a Redis si el tráfico lo justifica.
+
+---
+
+## Decisión 18 — Auditoría de actores públicos
+
+`AuditLog.userId` pasa a ser opcional. Acciones del portal usan `userId = null` y `metadata.source = "PUBLIC"`.
+
+### Motivo
+
+Inventar un usuario interno o compartir una service account falsearía la trazabilidad. El actor público no equivale a un `User` autenticado.
+
+### Privacidad
+
+La auditoría nunca almacena token plano, IP, HMAC de rate limit ni datos de contacto completos.
+
+Las páginas autenticadas por enlace se sirven sin caché y con política `no-referrer`. El token no se integra en analytics ni se escribe en logs de aplicación.

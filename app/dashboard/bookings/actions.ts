@@ -13,7 +13,7 @@ import {
   reserveWithCapacity,
 } from "@/lib/booking-rules";
 import { sendBookingNotification } from "@/lib/email";
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 import {
   databaseDateToLocalDateString,
   databaseTimeToString,
@@ -43,16 +43,18 @@ function bookingActionError(error: unknown) {
 
 async function recordEmailFailure(input: { organizationId: string; userId: string; bookingId: string; message: string }) {
   try {
-    await prisma.auditLog.create({
-      data: {
-        organizationId: input.organizationId,
-        userId: input.userId,
-        action: "email.delivery_failed",
-        entityType: "Booking",
-        entityId: input.bookingId,
-        metadata: { message: input.message },
-      },
-    });
+    await withAuthenticatedRls(input.userId, (transaction) =>
+      transaction.auditLog.create({
+        data: {
+          organizationId: input.organizationId,
+          userId: input.userId,
+          action: "email.delivery_failed",
+          entityType: "Booking",
+          entityId: input.bookingId,
+          metadata: { message: input.message },
+        },
+      }),
+    );
   } catch (auditError) {
     console.error("No se pudo auditar el error de email:", auditError);
   }
@@ -70,7 +72,7 @@ export async function createBookingAction(_: ActionState, formData: FormData): P
     const startDateTime = localDateTimeStringToUtc(parsed.data.localStartDateTime, context.organization.timezone);
     if (startDateTime <= new Date()) throw new BookingRuleError("PAST_DATE", "La reserva debe comenzar en el futuro.");
 
-    const result = await prisma.$transaction(async (transaction) => {
+    const result = await withAuthenticatedRls(context.userId, async (transaction) => {
       const [customer, service, resource] = await Promise.all([
         transaction.customer.findFirst({ where: { id: parsed.data.customerId, organizationId: context.organizationId } }),
         transaction.service.findFirst({ where: { id: parsed.data.serviceId, organizationId: context.organizationId } }),
@@ -188,7 +190,7 @@ export async function changeBookingStatusAction(_: ActionState, formData: FormDa
   if (!status.success) return { error: "El estado no es válido." };
   try {
     const context = await requireOrganizationRole([...OPERATORS]);
-    const result = await prisma.$transaction(async (transaction) => {
+    const result = await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.booking.findFirst({
         where: { id: id.data, organizationId: context.organizationId },
         include: { customer: true, service: true },
@@ -232,7 +234,7 @@ export async function updateBookingPaymentAction(_: ActionState, formData: FormD
   if (!id.success || !paymentStatus.success) return { error: "Los datos de pago no son válidos." };
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.booking.findFirst({ where: { id: id.data, organizationId: context.organizationId } });
       if (!previous) throw new BookingRuleError("NOT_FOUND", "La reserva no existe en la organización activa.");
       const updated = await transaction.booking.update({ where: { id: previous.id }, data: { paymentStatus: paymentStatus.data } });
@@ -255,7 +257,7 @@ export async function updateBookingNotesAction(_: ActionState, formData: FormDat
   if (!id.success || !parsed.success) return { error: "Las notas no son válidas." };
   try {
     const context = await requireOrganizationRole([...OPERATORS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.booking.findFirst({ where: { id: id.data, organizationId: context.organizationId } });
       if (!previous) throw new BookingRuleError("NOT_FOUND", "La reserva no existe en la organización activa.");
       const updated = await transaction.booking.update({ where: { id: previous.id }, data: { notes: parsed.data.notes ?? null } });

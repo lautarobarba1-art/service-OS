@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 
 export const ACTIVE_MEMBERSHIP_COOKIE = "serviceos-active-membership";
@@ -19,11 +19,13 @@ export async function getAuthenticatedUser() {
 
 export const getOrganizationContext = cache(async function getOrganizationContext() {
   const user = await getAuthenticatedUser();
-  const memberships = await prisma.membership.findMany({
-    where: { userId: user.id },
-    include: { organization: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const memberships = await withAuthenticatedRls(user.id, (transaction) =>
+    transaction.membership.findMany({
+      where: { userId: user.id },
+      include: { organization: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  );
 
   const cookieStore = await cookies();
   const selectedMembershipId = cookieStore.get(ACTIVE_MEMBERSHIP_COOKIE)?.value;

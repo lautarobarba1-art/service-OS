@@ -1,6 +1,5 @@
 import { Prisma } from "@prisma/client";
 
-import { prisma } from "@/lib/prisma";
 import { localDateKey, utcToZonedParts, zonedDateTimeToUtc } from "@/lib/timezone";
 
 export type DashboardPeriod = "day" | "week" | "month";
@@ -65,20 +64,23 @@ export function percentage(part: number, total: number) {
 
 type TopServiceRow = { id: string; name: string; bookingCount: bigint };
 
-export async function getDashboardMetrics(input: { organizationId: string; timeZone: string; period: DashboardPeriod; now?: Date }) {
+export async function getDashboardMetrics(
+  input: { organizationId: string; timeZone: string; period: DashboardPeriod; now?: Date },
+  database: Prisma.TransactionClient,
+) {
   const range = getDashboardPeriodRange(input.period, input.timeZone, input.now);
   const scopedWhere = { organizationId: input.organizationId, startDateTime: { gte: range.start, lt: range.end } };
 
   const [bookings, newCustomers, pendingPaymentCount, pendingPayments, topServiceRows] = await Promise.all([
-    prisma.booking.findMany({ where: scopedWhere, select: { startDateTime: true, status: true } }),
-    prisma.customer.count({ where: { organizationId: input.organizationId, createdAt: { gte: range.start, lt: range.end } } }),
-    prisma.booking.count({ where: { ...scopedWhere, status: "COMPLETED", paymentStatus: "UNPAID" } }),
-    prisma.booking.findMany({
+    database.booking.findMany({ where: scopedWhere, select: { startDateTime: true, status: true } }),
+    database.customer.count({ where: { organizationId: input.organizationId, createdAt: { gte: range.start, lt: range.end } } }),
+    database.booking.count({ where: { ...scopedWhere, status: "COMPLETED", paymentStatus: "UNPAID" } }),
+    database.booking.findMany({
       where: { ...scopedWhere, status: "COMPLETED", paymentStatus: "UNPAID" },
       include: { customer: { select: { fullName: true } }, service: { select: { name: true } } },
       orderBy: { startDateTime: "desc" }, take: 5,
     }),
-    prisma.$queryRaw<TopServiceRow[]>(Prisma.sql`
+    database.$queryRaw<TopServiceRow[]>(Prisma.sql`
       SELECT s."id", s."name", COUNT(b."id")::bigint AS "bookingCount"
       FROM "Booking" b
       INNER JOIN "Service" s ON s."id" = b."serviceId"

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { ActionState } from "@/lib/action-state";
 import { toAuditMetadata } from "@/lib/audit";
 import { actionError, requireOrganizationRole } from "@/lib/authorization";
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 import { localDateStringToDatabaseDate, timeStringToDatabaseDate } from "@/lib/timezone";
 import {
   availabilityRuleSchema,
@@ -25,8 +25,10 @@ function ruleInput(formData: FormData) {
   });
 }
 
-async function resourceBelongsToOrganization(resourceId: string, organizationId: string) {
-  return prisma.resource.findFirst({ where: { id: resourceId, organizationId }, select: { id: true } });
+async function resourceBelongsToOrganization(userId: string, resourceId: string, organizationId: string) {
+  return withAuthenticatedRls(userId, (transaction) =>
+    transaction.resource.findFirst({ where: { id: resourceId, organizationId }, select: { id: true } }),
+  );
 }
 
 export async function createAvailabilityRuleAction(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -34,8 +36,8 @@ export async function createAvailabilityRuleAction(_: ActionState, formData: For
   if (!parsed.success) return { error: firstValidationError(parsed.error) };
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    if (!(await resourceBelongsToOrganization(parsed.data.resourceId, context.organizationId))) return { error: "El recurso no pertenece a la organización activa." };
-    await prisma.$transaction(async (transaction) => {
+    if (!(await resourceBelongsToOrganization(context.userId, parsed.data.resourceId, context.organizationId))) return { error: "El recurso no pertenece a la organización activa." };
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const rule = await transaction.availabilityRule.create({
         data: {
           organizationId: context.organizationId,
@@ -64,8 +66,8 @@ export async function updateAvailabilityRuleAction(_: ActionState, formData: For
   if (!parsed.success) return { error: firstValidationError(parsed.error) };
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    if (!(await resourceBelongsToOrganization(parsed.data.resourceId, context.organizationId))) return { error: "El recurso no pertenece a la organización activa." };
-    await prisma.$transaction(async (transaction) => {
+    if (!(await resourceBelongsToOrganization(context.userId, parsed.data.resourceId, context.organizationId))) return { error: "El recurso no pertenece a la organización activa." };
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.availabilityRule.findFirst({ where: { id: id.data, organizationId: context.organizationId } });
       if (!previous) throw new Error("Availability rule not found in active organization");
       const updated = await transaction.availabilityRule.update({
@@ -93,7 +95,7 @@ export async function deleteAvailabilityRuleAction(formData: FormData) {
   if (!id.success) return;
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.availabilityRule.findFirst({ where: { id: id.data, organizationId: context.organizationId } });
       if (!previous) return;
       await transaction.availabilityRule.delete({ where: { id: previous.id } });
@@ -113,8 +115,8 @@ function blockedInput(formData: FormData) {
   return blockedDateSchema.safeParse({ resourceId: formData.get("resourceId"), date: formData.get("date"), reason: formData.get("reason") });
 }
 
-async function validBlockedResource(resourceId: string | null, organizationId: string) {
-  return resourceId === null || Boolean(await resourceBelongsToOrganization(resourceId, organizationId));
+async function validBlockedResource(userId: string, resourceId: string | null, organizationId: string) {
+  return resourceId === null || Boolean(await resourceBelongsToOrganization(userId, resourceId, organizationId));
 }
 
 export async function createBlockedDateAction(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -122,8 +124,8 @@ export async function createBlockedDateAction(_: ActionState, formData: FormData
   if (!parsed.success) return { error: firstValidationError(parsed.error) };
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    if (!(await validBlockedResource(parsed.data.resourceId, context.organizationId))) return { error: "El recurso no pertenece a la organización activa." };
-    await prisma.$transaction(async (transaction) => {
+    if (!(await validBlockedResource(context.userId, parsed.data.resourceId, context.organizationId))) return { error: "El recurso no pertenece a la organización activa." };
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const blocked = await transaction.blockedDate.create({
         data: { organizationId: context.organizationId, resourceId: parsed.data.resourceId, date: localDateStringToDatabaseDate(parsed.data.date), reason: parsed.data.reason },
       });
@@ -146,8 +148,8 @@ export async function updateBlockedDateAction(_: ActionState, formData: FormData
   if (!parsed.success) return { error: firstValidationError(parsed.error) };
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    if (!(await validBlockedResource(parsed.data.resourceId, context.organizationId))) return { error: "El recurso no pertenece a la organización activa." };
-    await prisma.$transaction(async (transaction) => {
+    if (!(await validBlockedResource(context.userId, parsed.data.resourceId, context.organizationId))) return { error: "El recurso no pertenece a la organización activa." };
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.blockedDate.findFirst({ where: { id: id.data, organizationId: context.organizationId } });
       if (!previous) throw new Error("Blocked date not found in active organization");
       const updated = await transaction.blockedDate.update({
@@ -172,7 +174,7 @@ export async function deleteBlockedDateAction(formData: FormData) {
   if (!id.success) return;
   try {
     const context = await requireOrganizationRole([...MANAGERS]);
-    await prisma.$transaction(async (transaction) => {
+    await withAuthenticatedRls(context.userId, async (transaction) => {
       const previous = await transaction.blockedDate.findFirst({ where: { id: id.data, organizationId: context.organizationId } });
       if (!previous) return;
       await transaction.blockedDate.delete({ where: { id: previous.id } });

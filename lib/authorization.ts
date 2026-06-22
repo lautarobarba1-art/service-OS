@@ -21,6 +21,6 @@ export async function requireOrganizationRole(allowedRoles: MembershipRole[]) {
 
 export function actionError(error: unknown) {
   if (error instanceof AuthorizationError) return error.message;
-  console.error("Error en operación de Fase 2:", error);
+  console.error("Error en Server Action:", error);
   return "No pudimos completar la operación. Intentá nuevamente.";
 }

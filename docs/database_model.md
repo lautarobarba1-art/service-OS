@@ -40,6 +40,12 @@ Representa un negocio dentro de la plataforma.
 | email | TEXT | Email de contacto del negocio |
 | phone | TEXT | Opcional |
 | timezone | TEXT | Identificador IANA (ej: "America/Argentina/Buenos_Aires") |
+| publicBookingEnabled | BOOLEAN | Default: false. Habilita `/reservar/[slug]` |
+| bookingConfirmationMode | ENUM | AUTO_CONFIRM \| MANUAL_APPROVAL. Default: AUTO_CONFIRM |
+| slotIntervalMinutes | INTEGER | Default: 15. Incremento usado para generar inicios posibles |
+| minimumBookingNoticeMinutes | INTEGER | Default: 60. Anticipación mínima para reservar |
+| bookingWindowDays | INTEGER | Default: 60. Horizonte máximo visible |
+| cancellationNoticeMinutes | INTEGER | Default: 1440. Anticipación mínima para cancelar/reprogramar |
 | createdAt | TIMESTAMPTZ | |
 | updatedAt | TIMESTAMPTZ | |
 
@@ -94,8 +100,28 @@ Representa un servicio ofrecido por una organización.
 | price | DECIMAL | Precio de referencia. No se cobra por esta plataforma en el MVP |
 | capacity | INTEGER | Máximo de asistentes por slot. Default: 1 |
 | isActive | BOOLEAN | Default: true |
+| isPublic | BOOLEAN | Default: false. Solo los servicios publicados aparecen en auto-reserva |
 | createdAt | TIMESTAMPTZ | |
 | updatedAt | TIMESTAMPTZ | |
+
+---
+
+### ServiceResource
+
+Declara qué recursos activos están habilitados para prestar un servicio. Es la fuente de elegibilidad para la asignación automática del portal público.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| id | UUID | |
+| organizationId | UUID | Referencia a Organization. Requerido para RLS |
+| serviceId | UUID | Referencia a Service |
+| resourceId | UUID | Referencia a Resource |
+| createdAt | TIMESTAMPTZ | |
+
+**Restricciones:**
+- La combinación (`serviceId`, `resourceId`) es única.
+- `Service`, `Resource` y `ServiceResource` deben pertenecer a la misma organización.
+- Un servicio público sin recursos elegibles no expone slots.
 
 ---
 
@@ -110,7 +136,7 @@ Representa un cliente de un negocio. No tiene acceso al sistema (entidad pasiva 
 | fullName | TEXT | |
 | email | TEXT | Opcional. Usado para enviar emails de confirmación |
 | phone | TEXT | Opcional |
-| notes | TEXT | Notas internas del negocio sobre el cliente |
+| notes | TEXT | Notas internas del negocio sobre el cliente. Default: texto vacío |
 | createdAt | TIMESTAMPTZ | |
 | updatedAt | TIMESTAMPTZ | |
 
@@ -169,12 +195,27 @@ Representa una reserva de un cliente para un servicio en un recurso.
 | status | ENUM | PENDING \| CONFIRMED \| COMPLETED \| CANCELLED \| NO_SHOW |
 | paymentStatus | ENUM | UNPAID \| PAID \| WAIVED |
 | notes | TEXT | Opcional. Notas internas |
+| source | ENUM | INTERNAL \| PUBLIC. Default: INTERNAL |
+| referenceCode | TEXT | Código público aleatorio y único; nunca secuencial |
+| idempotencyKey | TEXT | Opcional. Único por organización cuando no es null |
+| idempotencyPayloadHash | TEXT | Opcional. Hash canónico del payload asociado a la key |
+| manageTokenHash | TEXT | Opcional. Hash SHA-256 del token bearer; nunca se guarda el token plano |
+| manageTokenExpiresAt | TIMESTAMPTZ | Opcional. Vencimiento del acceso público |
 | createdAt | TIMESTAMPTZ | |
 | updatedAt | TIMESTAMPTZ | |
 
 **Nota sobre `endDateTime`:** Representa el fin de la reserva en el momento de su creación, calculado con la duración del servicio vigente. Si la duración del servicio se modifica posteriormente, las reservas existentes conservan su `endDateTime` original. Las nuevas reservas usarán la duración actualizada.
 
 **Nota sobre `paymentStatus`:** En el MVP no hay integración con pasarelas de pago. El staff actualiza este campo manualmente para reflejar si una reserva fue cobrada.
+
+**Formato de referencia pública:** `referenceCode` usa 12 caracteres Crockford Base32 generados criptográficamente. Es apto para soporte y visualización, pero no autoriza ninguna operación.
+
+**Compatibilidad de la migración de Fase 6:**
+- Los nuevos campos de `Organization` reciben sus defaults sin habilitar públicamente ningún tenant existente.
+- `Service.isPublic` se inicializa en `false` y `Booking.source` en `INTERNAL`.
+- Las reservas existentes reciben un `referenceCode` único durante la migración; no reciben token de gestión retroactivamente.
+- `AuditLog.userId` pasa a nullable preservando las referencias actuales.
+- No se crean relaciones `ServiceResource` implícitas: OWNER o ADMIN debe publicar cada servicio y elegir sus recursos de forma explícita.
 
 ---
 
@@ -186,12 +227,34 @@ Registra acciones importantes dentro del sistema para trazabilidad.
 |---|---|---|
 | id | UUID | |
 | organizationId | UUID | |
-| userId | UUID | Usuario que realizó la acción |
+| userId | UUID | Opcional. Usuario interno; null cuando el actor es un cliente público |
 | action | TEXT | Identificador de la acción (ej: "booking.created") |
 | entityType | TEXT | Tipo de entidad afectada (ej: "Booking") |
 | entityId | UUID | ID de la entidad afectada |
 | metadata | JSONB | Datos adicionales del contexto de la acción |
 | createdAt | TIMESTAMPTZ | |
+
+Las acciones públicas mantienen `organizationId` y `entityId`, usan `userId = null` y registran `source = PUBLIC` y contexto no sensible en `metadata`.
+
+---
+
+### PublicRateLimit
+
+Bucket persistente para limitar abuso en endpoints públicos dentro de un entorno serverless.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| id | UUID | |
+| organizationId | UUID | Referencia a Organization |
+| keyHash | TEXT | HMAC del identificador de red; nunca se almacena la IP cruda |
+| action | TEXT | `slots`, `create_booking` o `manage_booking` |
+| windowStart | TIMESTAMPTZ | Inicio de la ventana |
+| requestCount | INTEGER | Cantidad acumulada |
+| expiresAt | TIMESTAMPTZ | Permite limpieza periódica |
+
+**Restricción:** (`organizationId`, `keyHash`, `action`, `windowStart`) es único.
+
+RLS está habilitado sin políticas para `anon` ni `authenticated`; solo funciones/server code confiable acceden a esta tabla.
 
 ---
 

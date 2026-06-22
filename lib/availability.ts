@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import {
   databaseDateToLocalDateString,
   databaseTimeToString,
@@ -12,8 +12,8 @@ export async function validateResourceSlotAvailability(input: {
   resourceId: string;
   startDateTime: Date;
   endDateTime: Date;
-}) {
-  const organization = await prisma.organization.findUnique({
+}, database: Prisma.TransactionClient) {
+  const organization = await database.organization.findUnique({
     where: { id: input.organizationId },
     select: { timezone: true },
   });
@@ -22,9 +22,9 @@ export async function validateResourceSlotAvailability(input: {
   const localDate = utcToLocalDateKey(input.startDateTime, organization.timezone);
   const databaseDate = localDateStringToDatabaseDate(localDate);
   const [resource, rules, blockedDates] = await Promise.all([
-    prisma.resource.findFirst({ where: { id: input.resourceId, organizationId: input.organizationId }, select: { id: true } }),
-    prisma.availabilityRule.findMany({ where: { organizationId: input.organizationId, resourceId: input.resourceId } }),
-    prisma.blockedDate.findMany({
+    database.resource.findFirst({ where: { id: input.resourceId, organizationId: input.organizationId }, select: { id: true } }),
+    database.availabilityRule.findMany({ where: { organizationId: input.organizationId, resourceId: input.resourceId } }),
+    database.blockedDate.findMany({
       where: {
         organizationId: input.organizationId,
         date: databaseDate,

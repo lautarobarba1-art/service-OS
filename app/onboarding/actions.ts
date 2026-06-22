@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import type { ActionState } from "@/lib/action-state";
 import { ACTIVE_MEMBERSHIP_COOKIE, getAuthenticatedUser } from "@/lib/organization-context";
-import { prisma } from "@/lib/prisma";
+import { prisma, withAuthenticatedRls } from "@/lib/prisma";
 
 function isIanaTimezone(value: string) {
   try {
@@ -44,7 +44,9 @@ export async function createOrganizationAction(_: ActionState, formData: FormDat
   const authUser = await getAuthenticatedUser();
   if (!authUser.email) return { error: "La cuenta autenticada no tiene un email válido." };
 
-  const existingMembership = await prisma.membership.findFirst({ where: { userId: authUser.id } });
+  const existingMembership = await withAuthenticatedRls(authUser.id, (transaction) =>
+    transaction.membership.findFirst({ where: { userId: authUser.id } }),
+  );
   if (existingMembership) {
     const cookieStore = await cookies();
     cookieStore.set(ACTIVE_MEMBERSHIP_COOKIE, existingMembership.id, activeCookieOptions());
@@ -58,6 +60,10 @@ export async function createOrganizationAction(_: ActionState, formData: FormDat
 
   let membershipId: string;
   try {
+    // Onboarding is the only authenticated flow that must run before a
+    // membership exists. Its privileged transaction derives every tenant key
+    // from the authenticated user and creates the org, OWNER and default
+    // resource atomically.
     membershipId = await prisma.$transaction(async (transaction) => {
       await transaction.user.upsert({
         where: { id: authUser.id },

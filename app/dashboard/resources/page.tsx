@@ -1,13 +1,15 @@
 import { ResourceForm } from "@/components/resource-form";
 import { ResourceTable } from "@/components/resource-table";
 import { getOrganizationContext } from "@/lib/organization-context";
-import { prisma } from "@/lib/prisma";
+import { withAuthenticatedRls } from "@/lib/prisma";
 
 export default async function ResourcesPage() {
-  const { activeMembership } = await getOrganizationContext();
+  const { user, activeMembership } = await getOrganizationContext();
   if (!activeMembership) return null;
   const canManage = activeMembership.role === "OWNER" || activeMembership.role === "ADMIN";
-  const resources = await prisma.resource.findMany({ where: { organizationId: activeMembership.organizationId }, orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }] });
+  const resources = await withAuthenticatedRls(user.id, (transaction) =>
+    transaction.resource.findMany({ where: { organizationId: activeMembership.organizationId }, orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }] }),
+  );
   const rows = resources.map((resource) => ({ id: resource.id, name: resource.name, type: resource.type, isDefault: resource.isDefault, isActive: resource.isActive }));
 
   return (
