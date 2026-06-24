@@ -1,12 +1,14 @@
 "use server";
 
 import { after } from "next/server";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import type { ActionState } from "@/lib/action-state";
+import { canonicalAuthOrigin, safeAuthRedirectPath } from "@/lib/auth-callback";
 import { sendWelcomeEmail } from "@/lib/email";
+import { ACTIVE_MEMBERSHIP_COOKIE } from "@/lib/organization-context";
 import { createClient } from "@/lib/supabase/server";
 
 const credentialsSchema = z.object({
@@ -34,11 +36,11 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: "Email o contraseña incorrectos." };
 
+  const cookieStore = await cookies();
+  cookieStore.delete(ACTIVE_MEMBERSHIP_COOKIE);
+
   const requestedPath = formData.get("next");
-  const safePath =
-    typeof requestedPath === "string" && requestedPath.startsWith("/") && !requestedPath.startsWith("//")
-      ? requestedPath
-      : "/dashboard";
+  const safePath = safeAuthRedirectPath(typeof requestedPath === "string" ? requestedPath : null);
   redirect(safePath);
 }
 
@@ -52,7 +54,7 @@ export async function registerAction(_: ActionState, formData: FormData): Promis
   if (!parsed.success) return { error: firstError(parsed.error) };
 
   const requestHeaders = await headers();
-  const origin = requestHeaders.get("origin");
+  const origin = canonicalAuthOrigin(requestHeaders.get("origin"));
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
@@ -64,6 +66,9 @@ export async function registerAction(_: ActionState, formData: FormData): Promis
   });
 
   if (error) return { error: error.message };
+
+  const cookieStore = await cookies();
+  cookieStore.delete(ACTIVE_MEMBERSHIP_COOKIE);
 
   after(async () => {
     try {
@@ -80,5 +85,7 @@ export async function registerAction(_: ActionState, formData: FormData): Promis
 export async function logoutAction() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  const cookieStore = await cookies();
+  cookieStore.delete(ACTIVE_MEMBERSHIP_COOKIE);
   redirect("/login");
 }

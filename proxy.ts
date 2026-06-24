@@ -13,6 +13,7 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isProtected = path.startsWith("/dashboard") || path.startsWith("/onboarding");
   const isAuthPage = path === "/login" || path === "/register";
+  const hasAuthError = path === "/login" && request.nextUrl.searchParams.has("error");
 
   if (isProtected && !user) {
     const loginUrl = request.nextUrl.clone();
@@ -21,7 +22,7 @@ export async function proxy(request: NextRequest) {
     return redirectKeepingSession(loginUrl, response);
   }
 
-  if (isAuthPage && user) {
+  if (isAuthPage && user && !hasAuthError) {
     const dashboardUrl = request.nextUrl.clone();
     dashboardUrl.pathname = "/dashboard";
     dashboardUrl.search = "";

@@ -11,6 +11,14 @@ Base técnica del SaaS y gestión operativa: autenticación, multi-tenancy, cat�
 5. En Supabase Auth, agregá `http://localhost:3000/auth/callback` entre las redirect URLs.
 6. Iniciá con `npm run dev`.
 
+### Confirmación de email en Supabase
+
+En **Authentication → URL Configuration**, configurá la Site URL de producción y agregá como Redirect URLs tanto `http://localhost:3000/auth/callback` como `https://tu-dominio/auth/callback`.
+
+El plan gratuito puede conservar la plantilla predeterminada. El registro envía un `RedirectTo` con `?next=/onboarding` y el callback procesa el `code` PKCE generado por Supabase. Para que el inicio automático funcione, el enlace debe abrirse en el mismo navegador y perfil donde comenzó el registro; si se abre en otro dispositivo, el email queda confirmado pero puede ser necesario iniciar sesión manualmente.
+
+El callback también admite `token_hash` si en el futuro el proyecto habilita una plantilla personalizada, pero esa configuración no es obligatoria.
+
 Para la auto-reserva pública también configurá `PUBLIC_RATE_LIMIT_SECRET` con un valor aleatorio de al menos 32 caracteres y `APP_URL` con el origen canónico del despliegue (por ejemplo, `https://tu-proyecto.vercel.app`). El enlace público de cada negocio está disponible en `/reservar/[slug]` cuando la organización y al menos un servicio están publicados.
 
 El remitente de bienvenida usa `onboarding@resend.dev` para desarrollo. En producción debe reemplazarse por un dominio verificado en Resend.
