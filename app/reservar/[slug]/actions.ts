@@ -148,7 +148,7 @@ export async function createPublicBookingAction(
 
     const result = await createPublicBooking(parsed.data);
     const localDateTime = formatUtcInTimeZone(result.booking.startDateTime, result.organization.timezone);
-    const managePath = result.manageToken ? `/reserva/${result.manageToken}` : undefined;
+    const managePath = result.manageToken ? `/reserva#${result.manageToken}` : undefined;
     const publicStatus = result.booking.status === "CONFIRMED" ? "CONFIRMED" : "PENDING";
 
     if (!result.replayed) {

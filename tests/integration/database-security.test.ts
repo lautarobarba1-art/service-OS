@@ -4,7 +4,12 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { getPublishedServicesBySlug, getPublicServiceSlots } from "@/lib/public-booking-data";
-import { getPublicBookingByManageToken } from "@/lib/public-booking-management";
+import {
+  cancelPublicBooking,
+  getPublicBookingByManageToken,
+  PublicManagementError,
+  reschedulePublicBooking,
+} from "@/lib/public-booking-management";
 import { createPublicBooking, PublicBookingError } from "@/lib/public-booking-service";
 import { consumePublicRateLimit } from "@/lib/public-rate-limit";
 
@@ -46,6 +51,8 @@ describeDatabase("Postgres security and concurrency", () => {
   const firstCustomerId = randomUUID();
   const secondCustomerId = randomUUID();
   const bookingIds = [randomUUID(), randomUUID()];
+  let publicBookingId = "";
+  let publicManageToken = "";
   const startDateTime = new Date("2035-06-21T12:00:00.000Z");
   const endDateTime = new Date("2035-06-21T13:00:00.000Z");
 
@@ -230,6 +237,8 @@ describeDatabase("Postgres security and concurrency", () => {
     const now = new Date("2035-06-22T00:00:00.000Z");
 
     const created = await createPublicBooking(input, now);
+    publicBookingId = created.booking.id;
+    publicManageToken = created.manageToken!;
     expect(created.replayed).toBe(false);
     expect(created.manageToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(created.booking).toMatchObject({ source: "PUBLIC", status: "CONFIRMED", resourceId });
@@ -275,6 +284,54 @@ describeDatabase("Postgres security and concurrency", () => {
       idempotencyKey: randomUUID(),
     }, new Date("2035-06-22T00:00:00.000Z"))).rejects.toBeInstanceOf(PublicBookingError);
     expect(await database.auditLog.count({ where: { organizationId, action: "public_booking.identity_conflict" } })).toBe(1);
+  });
+
+  it("preserves invalid reschedules, rotates tokens and revokes them on cancellation", async () => {
+    const now = new Date("2035-06-22T00:00:00.000Z");
+    const original = await database.booking.findUniqueOrThrow({ where: { id: publicBookingId } });
+    await expect(reschedulePublicBooking({
+      token: publicManageToken,
+      startDateTime: "2035-06-23T08:00:00.000Z",
+    }, now)).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    expect(await database.booking.findUniqueOrThrow({ where: { id: publicBookingId } })).toMatchObject({
+      resourceId: original.resourceId,
+      startDateTime: original.startDateTime,
+      endDateTime: original.endDateTime,
+    });
+
+    await expect(cancelPublicBooking(publicManageToken, new Date("2035-06-23T08:30:00.000Z")))
+      .rejects.toBeInstanceOf(PublicManagementError);
+    expect((await database.booking.findUniqueOrThrow({ where: { id: publicBookingId } })).status).toBe("CONFIRMED");
+
+    const newSlotDate = new Date("2035-06-25T00:00:00.000Z");
+    await database.availabilityRule.create({
+      data: {
+        organizationId,
+        resourceId,
+        dayOfWeek: newSlotDate.getUTCDay(),
+        startTime: new Date("1970-01-01T09:00:00.000Z"),
+        endTime: new Date("1970-01-01T10:00:00.000Z"),
+      },
+    });
+    const rescheduled = await reschedulePublicBooking({
+      token: publicManageToken,
+      startDateTime: "2035-06-25T09:00:00.000Z",
+    }, now);
+    expect(rescheduled.booking).toMatchObject({ id: publicBookingId, status: "CONFIRMED", resourceId });
+    expect(rescheduled.newToken).not.toBe(publicManageToken);
+    expect(await getPublicBookingByManageToken(publicManageToken, now)).toBeNull();
+    publicManageToken = rescheduled.newToken;
+
+    await database.booking.update({ where: { id: publicBookingId }, data: { manageTokenExpiresAt: new Date("2035-06-21T00:00:00.000Z") } });
+    expect(await getPublicBookingByManageToken(publicManageToken, now)).toBeNull();
+    await database.booking.update({ where: { id: publicBookingId }, data: { manageTokenExpiresAt: new Date("2035-07-30T00:00:00.000Z") } });
+
+    const cancelled = await cancelPublicBooking(publicManageToken, now);
+    expect(cancelled.booking.status).toBe("CANCELLED");
+    expect(cancelled.booking.manageTokenHash).toBeNull();
+    expect(await getPublicBookingByManageToken(publicManageToken, now)).toBeNull();
+    expect(await database.auditLog.count({ where: { organizationId, entityId: publicBookingId, action: "booking.rescheduled" } })).toBe(1);
+    expect(await database.auditLog.count({ where: { organizationId, entityId: publicBookingId, action: "booking.cancelled" } })).toBe(1);
   });
 
   it("allows only one public request to take the last place", async () => {

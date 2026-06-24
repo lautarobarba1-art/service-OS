@@ -1,4 +1,4 @@
-# ServiceOS — Fases 1 a 6B
+# ServiceOS — Fases 1 a 6C
 
 Base técnica del SaaS y gestión operativa: autenticación, multi-tenancy, catálogo, disponibilidad, reservas con capacidad transaccional, calendario, emails, auditoría y dashboard de métricas.
 
@@ -33,7 +33,7 @@ También cubre las reglas críticas de Fase 4: capacidad, dos intentos concurren
 
 Los tests de métricas verifican rangos diarios y semanales en la timezone del negocio, incluyendo DST, además de agrupaciones y tasas operativas.
 
-La Fase 6 agrega cobertura del motor público de slots, asignación determinista de recursos, idempotencia, reutilización segura de clientes, referencias no secuenciales y rate limiting persistente.
+La Fase 6 agrega cobertura del motor público de slots, asignación determinista de recursos, idempotencia, reutilización segura de clientes, referencias no secuenciales, rate limiting persistente y autogestión transaccional. Los enlaces nuevos conservan el token en el fragmento del navegador (`/reserva#token`) para evitar enviarlo en requests y logs HTTP; los enlaces anteriores se redirigen por compatibilidad.
 
 ## Tests de integración con Postgres
 

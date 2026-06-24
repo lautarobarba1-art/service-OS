@@ -40,3 +40,15 @@ export const publicSlotLookupSchema = z.object({
   localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   attendeesCount: z.coerce.number().int().min(1).max(100),
 });
+
+export const publicManageTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+
+export const publicManageSlotLookupSchema = z.object({
+  token: publicManageTokenSchema,
+  localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export const publicRescheduleSchema = z.object({
+  token: publicManageTokenSchema,
+  startDateTime: z.iso.datetime({ offset: true }),
+});

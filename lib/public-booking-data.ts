@@ -16,6 +16,7 @@ const publicSlotRequestSchema = z.object({
   rangeStart: z.date(),
   rangeEnd: z.date(),
   attendeesCount: z.number().int().min(1).max(100),
+  excludeBookingId: z.uuid().optional(),
 });
 
 export async function getPublicOrganizationForRequest(slug: string) {
@@ -108,6 +109,7 @@ export async function getPublicServiceSlots(rawInput: z.input<typeof publicSlotR
         serviceId: service.id,
         resourceId: { in: resourceIds },
         status: { in: ["PENDING", "CONFIRMED"] },
+        id: input.excludeBookingId ? { not: input.excludeBookingId } : undefined,
         startDateTime: { lt: queryEnd },
         endDateTime: { gt: queryStart },
       },
