@@ -12,7 +12,7 @@ export default async function ServicesPage() {
   );
   const rows = services.map((service) => ({
     id: service.id, name: service.name, description: service.description ?? "", durationMinutes: service.durationMinutes,
-    price: service.price.toFixed(2), capacity: service.capacity, isActive: service.isActive,
+    price: service.price.toFixed(2), capacity: service.capacity, isActive: service.isActive, isPublic: service.isPublic,
   }));
 
   return (

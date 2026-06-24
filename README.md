@@ -1,4 +1,4 @@
-# ServiceOS — Fases 1 a 5
+# ServiceOS — Fases 1 a 6B
 
 Base técnica del SaaS y gestión operativa: autenticación, multi-tenancy, catálogo, disponibilidad, reservas con capacidad transaccional, calendario, emails, auditoría y dashboard de métricas.
 
@@ -10,6 +10,8 @@ Base técnica del SaaS y gestión operativa: autenticación, multi-tenancy, cat�
 4. Aplicá las migraciones con `npm run prisma:migrate` en desarrollo o `npm run prisma:deploy` en un entorno desplegado.
 5. En Supabase Auth, agregá `http://localhost:3000/auth/callback` entre las redirect URLs.
 6. Iniciá con `npm run dev`.
+
+Para la auto-reserva pública también configurá `PUBLIC_RATE_LIMIT_SECRET` con un valor aleatorio de al menos 32 caracteres y `APP_URL` con el origen canónico del despliegue (por ejemplo, `https://tu-proyecto.vercel.app`). El enlace público de cada negocio está disponible en `/reservar/[slug]` cuando la organización y al menos un servicio están publicados.
 
 El remitente de bienvenida usa `onboarding@resend.dev` para desarrollo. En producción debe reemplazarse por un dominio verificado en Resend.
 
@@ -31,13 +33,16 @@ También cubre las reglas críticas de Fase 4: capacidad, dos intentos concurren
 
 Los tests de métricas verifican rangos diarios y semanales en la timezone del negocio, incluyendo DST, además de agrupaciones y tasas operativas.
 
+La Fase 6 agrega cobertura del motor público de slots, asignación determinista de recursos, idempotencia, reutilización segura de clientes, referencias no secuenciales y rate limiting persistente.
+
 ## Tests de integración con Postgres
 
 La suite `tests/integration` valida RLS real, RBAC de pagos y dos inserts concurrentes sobre el último lugar. Nunca usa `DATABASE_URL` implícitamente: requiere una `TEST_DATABASE_URL` dedicada.
 
-1. Levantá Supabase local con Docker mediante Supabase CLI (`supabase start`).
+1. Levantá el PostgreSQL descartable con `npm run test:db:up`.
 2. Copiá `.env.test.example` a `.env.test.local`.
 3. Aplicá el schema descartable con `npm run prisma:test:deploy`.
 4. Ejecutá `npm run test:integration`.
+5. Al terminar, eliminá contenedor y volumen con `npm run test:db:down`.
 
 Sin `.env.test.local`, los tests de integración se omiten. Una URL remota se rechaza salvo que `ALLOW_REMOTE_TEST_DATABASE=true`; esa opción debe usarse únicamente con una base descartable, nunca producción.

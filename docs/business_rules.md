@@ -44,6 +44,7 @@ Cada membresía tiene un rol que determina qué acciones puede realizar el usuar
 | Eliminar organización | ✓ | ✗ | ✗ | ✗ |
 | Crear / editar / eliminar recursos | ✓ | ✓ | ✗ | ✗ |
 | Crear / editar / desactivar servicios | ✓ | ✓ | ✗ | ✗ |
+| Configurar auto-reserva y publicación | ✓ | ✓ | ✗ | ✗ |
 | Configurar disponibilidad semanal | ✓ | ✓ | ✗ | ✗ |
 | Gestionar fechas bloqueadas | ✓ | ✓ | ✗ | ✗ |
 | Ver dashboard y métricas | ✓ | ✓ | ✗ | ✗ |
@@ -291,6 +292,8 @@ Se registra en `AuditLog` toda acción relevante sobre entidades operativas:
 | Servicio creado | `service.created` |
 | Servicio editado | `service.updated` |
 | Servicio desactivado | `service.deactivated` |
+| Publicación de servicio actualizada | `service.publication_updated` |
+| Configuración pública actualizada | `organization.public_booking_updated` |
 | Cliente creado | `customer.created` |
 | Cliente editado | `customer.updated` |
 | Recurso creado | `resource.created` |

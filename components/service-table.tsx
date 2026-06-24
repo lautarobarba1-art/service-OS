@@ -14,6 +14,7 @@ export type ServiceRow = {
   price: string;
   capacity: number;
   isActive: boolean;
+  isPublic: boolean;
 };
 
 export function ServiceTable({ data, canManage }: { data: ServiceRow[]; canManage: boolean }) {
@@ -22,6 +23,7 @@ export function ServiceTable({ data, canManage }: { data: ServiceRow[]; canManag
     { accessorKey: "durationMinutes", header: "Duración", cell: ({ row }) => `${row.original.durationMinutes} min` },
     { accessorKey: "price", header: "Precio", cell: ({ row }) => `$ ${row.original.price}` },
     { accessorKey: "capacity", header: "Capacidad" },
+    { accessorKey: "isPublic", header: "Canal", cell: ({ row }) => row.original.isPublic ? <span className="active-pill">Público</span> : <span className="inactive-pill">Interno</span> },
     { accessorKey: "isActive", header: "Estado", cell: ({ row }) => <span className={row.original.isActive ? "active-pill" : "inactive-pill"}>{row.original.isActive ? "Activo" : "Inactivo"}</span> },
   ];
 

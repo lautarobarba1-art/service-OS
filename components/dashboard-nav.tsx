@@ -10,6 +10,7 @@ const navigation = [
   { icon: "◫", label: "Servicios", href: "/dashboard/services" },
   { icon: "♙", label: "Recursos", href: "/dashboard/resources" },
   { icon: "◷", label: "Disponibilidad", href: "/dashboard/availability" },
+  { icon: "↗", label: "Auto-reserva", href: "/dashboard/booking-settings" },
 ];
 
 export function DashboardNav() {
