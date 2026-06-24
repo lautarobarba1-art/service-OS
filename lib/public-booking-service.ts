@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { customerIdentityKeys, normalizeCustomerEmail, normalizeCustomerPhone } from "@/lib/customer-duplicates";
 import { prisma } from "@/lib/prisma";
@@ -29,6 +29,12 @@ class PublicIdentityConflictError extends PublicBookingError {
 }
 
 type CustomerMatch = { id: string; email: string | null; phone: string | null; fullName: string };
+
+function isCustomerUniqueConflict(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError
+    && error.code === "P2002"
+    && error.meta?.modelName === "Customer";
+}
 
 function canonicalPayloadHash(input: {
   serviceId: string;
@@ -132,7 +138,9 @@ export async function createPublicBooking(rawInput: unknown, now = new Date()) {
   const manageTokenHash = createHash("sha256").update(manageToken).digest("hex");
 
   try {
-    return await prisma.$transaction(async (transaction) => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await prisma.$transaction(async (transaction) => {
       const idempotencyLock = `public-booking:${organization.id}:${input.idempotencyKey}`;
       await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyLock}, 0))`;
       const existing = await transaction.booking.findUnique({
@@ -254,7 +262,18 @@ export async function createPublicBooking(rawInput: unknown, now = new Date()) {
         return { booking, customer: customerResult.customer, service, organization, manageToken, replayed: false };
       }
       throw new PublicBookingError("UNAVAILABLE", "El horario ya no está disponible. Elegí otro.");
-    }, { isolationLevel: "ReadCommitted", timeout: 15_000 });
+        }, { isolationLevel: "ReadCommitted", timeout: 15_000 });
+      } catch (error) {
+        // If another writer committed the same identity after our lookup, the
+        // failed transaction is rolled back. Retry once and reuse that row.
+        if (attempt === 0 && isCustomerUniqueConflict(error)) {
+          console.warn("Reintentando reserva pública después de una colisión de identidad de cliente.");
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new PublicBookingError("IDENTITY_CONFLICT", "No pudimos validar los datos de contacto. Revisalos o comunicate con el negocio.");
   } catch (error) {
     if (error instanceof PublicIdentityConflictError) {
       try {
@@ -271,6 +290,9 @@ export async function createPublicBooking(rawInput: unknown, now = new Date()) {
       } catch (auditError) {
         console.error("No se pudo auditar el conflicto de identidad pública:", auditError);
       }
+    }
+    if (isCustomerUniqueConflict(error)) {
+      throw new PublicBookingError("IDENTITY_CONFLICT", "No pudimos validar los datos de contacto. Revisalos o comunicate con el negocio.");
     }
     throw error;
   }
