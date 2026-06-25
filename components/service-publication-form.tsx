@@ -5,8 +5,9 @@ import { startTransition, useActionState } from "react";
 import { updateServicePublicationAction } from "@/app/dashboard/booking-settings/actions";
 import { OperationFormFeedback } from "@/components/operation-form-feedback";
 import { initialActionState } from "@/lib/action-state";
+import { resourceDisplayName, type ResourceType } from "@/lib/resource-labels";
 
-type ResourceOption = { id: string; name: string; isDefault: boolean };
+type ResourceOption = { id: string; name: string; type: ResourceType; isDefault: boolean };
 
 export function ServicePublicationForm({
   service,
@@ -28,7 +29,7 @@ export function ServicePublicationForm({
         {resources.length ? resources.map((resource) => (
           <label key={resource.id}>
             <input defaultChecked={service.resourceIds.includes(resource.id)} name="resourceIds" type="checkbox" value={resource.id} />
-            <span>{resource.name}{resource.isDefault ? " · predeterminado" : ""}</span>
+            <span>{resourceDisplayName(resource)}{resource.isDefault ? " · predeterminado" : ""}</span>
           </label>
         )) : <p>No hay recursos activos disponibles.</p>}
       </fieldset>

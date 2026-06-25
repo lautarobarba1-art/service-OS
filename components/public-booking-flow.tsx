@@ -126,8 +126,11 @@ export function PublicBookingFlow({
   const [localDate, setLocalDate] = useState(minimumLocalDate);
   const [attendeesCount, setAttendeesCount] = useState(1);
   const service = services.find((item) => item.id === serviceId);
+  const serviceCapacity = service?.capacity ?? 1;
+  const effectiveAttendeesCount = Math.min(Math.max(attendeesCount, 1), serviceCapacity);
 
   if (!service) return <p className="public-empty">No hay servicios disponibles en este momento.</p>;
+  const allowsMultiplePlaces = service.capacity > 1;
   const price = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(service.price));
 
   return (
@@ -145,12 +148,14 @@ export function PublicBookingFlow({
         </div>
         <div className="form-grid-two">
           <label>Fecha<input min={minimumLocalDate} onChange={(event) => setLocalDate(event.target.value)} required type="date" value={localDate} /></label>
-          <label>Asistentes<input max={service.capacity} min={1} onChange={(event) => setAttendeesCount(Number(event.target.value))} required type="number" value={attendeesCount} /></label>
+          {allowsMultiplePlaces ? (
+            <label>Cantidad de lugares<input max={service.capacity} min={1} onChange={(event) => setAttendeesCount(Math.min(Math.max(Number(event.target.value), 1), service.capacity))} required type="number" value={effectiveAttendeesCount} /></label>
+          ) : null}
         </div>
       </section>
       <BookingDetails
-        key={`${serviceId}:${localDate}:${attendeesCount}`}
-        attendeesCount={attendeesCount}
+        key={`${serviceId}:${localDate}:${effectiveAttendeesCount}`}
+        attendeesCount={effectiveAttendeesCount}
         idempotencyKey={idempotencyKey}
         localDate={localDate}
         service={service}

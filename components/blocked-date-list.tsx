@@ -2,10 +2,11 @@
 
 import { deleteBlockedDateAction } from "@/app/dashboard/availability/actions";
 import { BlockedDateForm } from "@/components/blocked-date-form";
+import type { ResourceType } from "@/lib/resource-labels";
 
 export type BlockedDateRow = { id: string; resourceId: string; resourceName: string; date: string; reason: string };
 
-export function BlockedDateList({ items, resources, canManage }: { items: BlockedDateRow[]; resources: Array<{ id: string; name: string }>; canManage: boolean }) {
+export function BlockedDateList({ items, resources, canManage }: { items: BlockedDateRow[]; resources: Array<{ id: string; name: string; type: ResourceType }>; canManage: boolean }) {
   if (!items.length) return <p className="empty-blocks">No hay fechas bloqueadas.</p>;
   return (
     <div className="blocked-list">

@@ -35,6 +35,7 @@ export function ResourceForm({ initial, compact = false }: { initial?: ResourceI
         <label>Nombre<input {...register("name")} placeholder="Ej. Sala A" /></label>
         <label>Tipo<select {...register("type")}><option value="PERSON">Persona</option><option value="ROOM">Sala</option><option value="EQUIPMENT">Equipo</option></select></label>
       </div>
+      {!compact ? <p className="field-help">Persona: profesional o miembro del equipo. Sala: espacio físico. Equipo: herramienta o máquina que no puede usarse en dos reservas al mismo tiempo.</p> : null}
       <OperationFormFeedback clientError={clientError} state={state} />
       <button className="button-primary" disabled={pending} type="submit">{pending ? "Guardando…" : initial ? "Guardar cambios" : "Crear recurso"}</button>
     </form>

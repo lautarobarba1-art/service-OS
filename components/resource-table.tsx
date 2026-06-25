@@ -5,21 +5,35 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { deleteResourceAction, toggleResourceAction } from "@/app/dashboard/resources/actions";
 import { DataTable } from "@/components/data-table";
 import { ResourceForm } from "@/components/resource-form";
+import { resourceDisplayName, resourceTypeLabel, type ResourceType } from "@/lib/resource-labels";
 
 export type ResourceRow = {
   id: string;
   name: string;
-  type: "PERSON" | "ROOM" | "EQUIPMENT";
+  type: ResourceType;
   isDefault: boolean;
   isActive: boolean;
+  availabilityRuleCount: number;
 };
-
-const typeLabel = { PERSON: "Persona", ROOM: "Sala", EQUIPMENT: "Equipo" };
 
 export function ResourceTable({ data, canManage }: { data: ResourceRow[]; canManage: boolean }) {
   const columns: ColumnDef<ResourceRow>[] = [
-    { accessorKey: "name", header: "Recurso", cell: ({ row }) => <div className="primary-cell"><strong>{row.original.name}</strong>{row.original.isDefault ? <span>Recurso default</span> : null}</div> },
-    { accessorKey: "type", header: "Tipo", cell: ({ row }) => typeLabel[row.original.type] },
+    {
+      accessorKey: "name",
+      header: "Recurso",
+      cell: ({ row }) => (
+        <div className="primary-cell">
+          <strong>{resourceDisplayName(row.original)}</strong>
+          {row.original.isDefault ? <span>Recurso default</span> : null}
+        </div>
+      ),
+    },
+    { accessorKey: "type", header: "Tipo", cell: ({ row }) => resourceTypeLabel(row.original.type) },
+    {
+      accessorKey: "availabilityRuleCount",
+      header: "Disponibilidad",
+      cell: ({ row }) => row.original.availabilityRuleCount > 0 ? `${row.original.availabilityRuleCount} horario${row.original.availabilityRuleCount === 1 ? "" : "s"}` : <span className="inactive-pill">Sin disponibilidad</span>,
+    },
     { accessorKey: "isActive", header: "Estado", cell: ({ row }) => <span className={row.original.isActive ? "active-pill" : "inactive-pill"}>{row.original.isActive ? "Activo" : "Inactivo"}</span> },
   ];
   if (canManage) columns.push({

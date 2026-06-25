@@ -39,7 +39,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
       transaction.service.findMany({ where: { organizationId: activeMembership.organizationId, isActive: true }, select: { id: true, name: true, capacity: true }, orderBy: { name: "asc" } }),
       transaction.resource.findMany({
         where: { organizationId: activeMembership.organizationId, isActive: true, availabilityRules: { some: {} } },
-        select: { id: true, name: true, availabilityRules: { select: { dayOfWeek: true, startTime: true, endTime: true }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } },
+        select: { id: true, name: true, type: true, availabilityRules: { select: { dayOfWeek: true, startTime: true, endTime: true }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] } },
         orderBy: { name: "asc" },
       }),
     ]),
@@ -57,7 +57,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="management-page bookings-page">
       <header className="management-heading booking-heading"><div><p className="eyebrow">OPERACIÓN</p><h1>Calendario</h1><p>Reservas expresadas en {timezone}.</p></div><div className="month-nav"><Link href={`/dashboard/bookings?month=${adjacentMonth(year, month, -1)}`}>←</Link><strong>{monthLabel}</strong><Link href={`/dashboard/bookings?month=${adjacentMonth(year, month, 1)}`}>→</Link></div></header>
-      {canCreate ? <details className="booking-creator"><summary>Nueva reserva</summary><div><BookingForm customers={customers.map((item) => ({ id: item.id, name: item.fullName }))} resources={resources.map((resource) => ({ id: resource.id, name: resource.name, availability: resource.availabilityRules.map((rule) => ({ dayOfWeek: rule.dayOfWeek, startTime: databaseTimeToString(rule.startTime), endTime: databaseTimeToString(rule.endTime) })) }))} services={services} timezone={timezone} /></div></details> : null}
+      {canCreate ? <details className="booking-creator"><summary>Reserva manual</summary><div><BookingForm customers={customers.map((item) => ({ id: item.id, name: item.fullName }))} resources={resources.map((resource) => ({ id: resource.id, name: resource.name, type: resource.type, availability: resource.availabilityRules.map((rule) => ({ dayOfWeek: rule.dayOfWeek, startTime: databaseTimeToString(rule.startTime), endTime: databaseTimeToString(rule.endTime) })) }))} services={services} timezone={timezone} /></div></details> : null}
       <BookingCalendar bookings={rows} month={month} year={year} />
     </div>
   );

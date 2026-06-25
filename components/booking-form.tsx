@@ -8,23 +8,31 @@ import { z } from "zod";
 import { createBookingAction } from "@/app/dashboard/bookings/actions";
 import { OperationFormFeedback } from "@/components/operation-form-feedback";
 import { initialActionState } from "@/lib/action-state";
+import { resourceDisplayName, type ResourceType } from "@/lib/resource-labels";
 import { createBookingSchema } from "@/lib/validations/operations";
 
 type Values = z.input<typeof createBookingSchema>;
 type Option = { id: string; name: string };
-type ResourceOption = Option & { availability: Array<{ dayOfWeek: number; startTime: string; endTime: string }> };
+type ResourceOption = Option & { type: ResourceType; availability: Array<{ dayOfWeek: number; startTime: string; endTime: string }> };
 const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
 export function BookingForm({ customers, services, resources, timezone }: { customers: Option[]; services: Array<Option & { capacity: number }>; resources: ResourceOption[]; timezone: string }) {
   const [state, formAction, pending] = useActionState(createBookingAction, initialActionState);
-  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<Values>({
+  const { register, handleSubmit, reset, control, setValue, formState: { errors } } = useForm<Values>({
     resolver: zodResolver(createBookingSchema),
     defaultValues: { customerId: "", serviceId: "", resourceId: "", localStartDateTime: "", attendeesCount: 1, notes: "" },
   });
   useEffect(() => { if (state.message) reset(); }, [state.message, reset]);
   const clientError = Object.values(errors)[0]?.message?.toString();
+  const selectedServiceId = useWatch({ control, name: "serviceId" });
   const selectedResourceId = useWatch({ control, name: "resourceId" });
+  const selectedService = services.find((service) => service.id === selectedServiceId);
   const selectedResource = resources.find((resource) => resource.id === selectedResourceId);
+  const selectedServiceCapacity = selectedService?.capacity ?? 1;
+  const allowsMultiplePlaces = selectedServiceCapacity > 1;
+  useEffect(() => {
+    if (selectedService?.capacity === 1) setValue("attendeesCount", 1);
+  }, [selectedService?.capacity, setValue]);
   const submit = handleSubmit((values) => {
     const data = new FormData();
     Object.entries(values).forEach(([key, value]) => data.set(key, String(value ?? "")));
@@ -37,23 +45,25 @@ export function BookingForm({ customers, services, resources, timezone }: { cust
       <div className="form-grid-three">
         <label>Cliente<select {...register("customerId")}><option value="">Seleccionar…</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label>Servicio<select {...register("serviceId")}><option value="">Seleccionar…</option>{services.map((item) => <option key={item.id} value={item.id}>{item.name} · cap. {item.capacity}</option>)}</select></label>
-        <label>Recurso<select {...register("resourceId")}><option value="">Seleccionar…</option>{resources.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label>Recurso<select {...register("resourceId")}><option value="">Seleccionar…</option>{resources.map((item) => <option key={item.id} value={item.id}>{resourceDisplayName(item)}</option>)}</select></label>
       </div>
       <div className="form-grid-two">
         <label>Inicio local<input {...register("localStartDateTime")} type="datetime-local" /></label>
-        <label>Asistentes<input {...register("attendeesCount")} min={1} step={1} type="number" /></label>
+        {allowsMultiplePlaces ? (
+          <label>Cantidad de lugares<input {...register("attendeesCount")} max={selectedServiceCapacity} min={1} step={1} type="number" /></label>
+        ) : null}
       </div>
       <label>Notas<textarea {...register("notes")} placeholder="Notas internas opcionales" rows={2} /></label>
-      <p className="field-help">Zona horaria: {timezone}</p>
+      <p className="field-help">Reserva manual para turnos tomados por teléfono, WhatsApp o presencial. Zona horaria: {timezone}</p>
       {selectedResource ? (
         <div className="booking-availability-hint">
           <strong>Disponibilidad de {selectedResource.name}</strong>
           <div>{selectedResource.availability.map((rule, index) => <span key={`${rule.dayOfWeek}-${rule.startTime}-${index}`}>{dayNames[rule.dayOfWeek]} {rule.startTime}–{rule.endTime}</span>)}</div>
         </div>
       ) : null}
-      {!ready ? <p className="form-error">Necesitás al menos un cliente, servicio activo y un recurso con disponibilidad configurada.</p> : null}
+      {!ready ? <p className="form-error">Necesitás al menos un cliente, un servicio activo y un recurso activo con disponibilidad cargada. Los recursos recién creados aparecen acá después de cargarles horarios.</p> : null}
       <OperationFormFeedback clientError={clientError} state={state} />
-      <button className="button-primary" disabled={pending || !ready} type="submit">{pending ? "Validando disponibilidad…" : "Crear reserva"}</button>
+      <button className="button-primary" disabled={pending || !ready} type="submit">{pending ? "Validando disponibilidad…" : "Crear reserva manual"}</button>
     </form>
   );
 }

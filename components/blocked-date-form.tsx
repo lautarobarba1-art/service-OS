@@ -8,12 +8,21 @@ import { z } from "zod";
 import { createBlockedDateAction, updateBlockedDateAction } from "@/app/dashboard/availability/actions";
 import { OperationFormFeedback } from "@/components/operation-form-feedback";
 import { initialActionState } from "@/lib/action-state";
+import { resourceDisplayName, type ResourceType } from "@/lib/resource-labels";
 import { blockedDateSchema } from "@/lib/validations/operations";
 
 type Values = z.input<typeof blockedDateSchema>;
 type InitialBlocked = { id: string; resourceId: string; date: string; reason: string };
 
-export function BlockedDateForm({ resources, initial, compact = false }: { resources: Array<{ id: string; name: string }>; initial?: InitialBlocked; compact?: boolean }) {
+export function BlockedDateForm({
+  resources,
+  initial,
+  compact = false,
+}: {
+  resources: Array<{ id: string; name: string; type: ResourceType }>;
+  initial?: InitialBlocked;
+  compact?: boolean;
+}) {
   const action = initial ? updateBlockedDateAction : createBlockedDateAction;
   const [state, formAction, pending] = useActionState(action, initialActionState);
   const { register, handleSubmit, reset, formState: { errors } } = useForm<Values>({
@@ -36,7 +45,7 @@ export function BlockedDateForm({ resources, initial, compact = false }: { resou
   return (
     <form className={compact ? "operation-form compact" : "operation-form"} onSubmit={submit}>
       <div className="form-grid-two">
-        <label>Alcance<select {...register("resourceId")}><option value="">Toda la organización</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select></label>
+        <label>Alcance<select {...register("resourceId")}><option value="">Toda la organización</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resourceDisplayName(resource)}</option>)}</select></label>
         <label>Fecha local<input {...register("date")} type="date" /></label>
       </div>
       <label>Motivo<input {...register("reason")} placeholder="Ej. Feriado" /></label>

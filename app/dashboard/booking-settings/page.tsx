@@ -12,7 +12,7 @@ export default async function BookingSettingsPage() {
       transaction.organization.findUniqueOrThrow({ where: { id: activeMembership.organizationId } }),
       transaction.resource.findMany({
         where: { organizationId: activeMembership.organizationId, isActive: true },
-        select: { id: true, name: true, isDefault: true },
+        select: { id: true, name: true, type: true, isDefault: true },
         orderBy: [{ isDefault: "desc" }, { name: "asc" }],
       }),
       transaction.service.findMany({

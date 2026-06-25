@@ -12,7 +12,7 @@ export default async function AvailabilityPage({ searchParams }: { searchParams:
   if (!activeMembership) return null;
   const canManage = activeMembership.role === "OWNER" || activeMembership.role === "ADMIN";
   const resources = await withAuthenticatedRls(user.id, (transaction) =>
-    transaction.resource.findMany({ where: { organizationId: activeMembership.organizationId }, orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }], select: { id: true, name: true } }),
+    transaction.resource.findMany({ where: { organizationId: activeMembership.organizationId }, orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }], select: { id: true, name: true, type: true } }),
   );
   const requestedResource = (await searchParams).resource;
   const selectedResource = resources.find((resource) => resource.id === requestedResource) ?? resources[0];
@@ -29,7 +29,7 @@ export default async function AvailabilityPage({ searchParams }: { searchParams:
 
   return (
     <div className="management-page availability-page">
-      <header className="management-heading availability-heading"><div><p className="eyebrow">AGENDA BASE</p><h1>Disponibilidad</h1><p>Los horarios se interpretan en <strong>{activeMembership.organization.timezone}</strong>.</p></div><ResourceAvailabilitySelector resources={resources} selectedId={selectedResource.id} /></header>
+      <header className="management-heading availability-heading"><div><p className="eyebrow">AGENDA BASE</p><h1>Disponibilidad</h1><p>Los horarios se interpretan en <strong>{activeMembership.organization.timezone}</strong>. Los recursos con horarios cargados podrán recibir reservas.</p></div><ResourceAvailabilitySelector resources={resources} selectedId={selectedResource.id} /></header>
       {canManage ? <section className="creation-panel"><div><p className="eyebrow">NUEVO HORARIO</p><h2>{selectedResource.name}</h2></div><AvailabilityRuleForm resourceId={selectedResource.id} /></section> : <p className="permission-note">Tu rol permite ver la disponibilidad, pero no modificarla.</p>}
       <section className="availability-panel"><div className="section-title"><p className="eyebrow">SEMANA TÍPICA</p><h2>Horarios de {selectedResource.name}</h2></div><WeeklyAvailability canManage={canManage} resourceId={selectedResource.id} rules={ruleRows} /></section>
       <section className="blocked-panel"><div><div className="section-title"><p className="eyebrow">EXCEPCIONES</p><h2>Fechas bloqueadas</h2></div>{canManage ? <BlockedDateForm resources={resources} /> : null}</div><BlockedDateList canManage={canManage} items={blockedRows} resources={resources} /></section>
