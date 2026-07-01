@@ -80,7 +80,7 @@ El negocio recibe la reserva automáticamente en su calendario. La creación pú
 | Formularios | React Hook Form |
 | Tablas | TanStack Table |
 | Gráficos | Recharts |
-| Emails transaccionales | Resend |
+| Emails transaccionales | SMTP genérico detrás de adaptador propio |
 | Deploy | Vercel |
 
 ## Criterio de éxito del MVP

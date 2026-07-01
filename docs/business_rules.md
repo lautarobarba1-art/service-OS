@@ -205,7 +205,7 @@ Si `bookingConfirmationMode = AUTO_CONFIRM`, la reserva nace `CONFIRMED`. Si es 
 - Valores iniciales: 60 consultas de slots/minuto, 5 intentos de reserva/10 minutos y 20 acciones de gestión/10 minutos.
 - Los buckets viven en `PublicRateLimit`, se actualizan atómicamente y expiran.
 - Rate limiting se aplica antes de operaciones costosas y no reemplaza validación, idempotencia ni locking.
-- El HMAC usa un secreto dedicado de entorno (`PUBLIC_RATE_LIMIT_SECRET`), distinto de claves de Supabase y Resend.
+- El HMAC usa un secreto dedicado de entorno (`PUBLIC_RATE_LIMIT_SECRET`), distinto de claves de Supabase y del proveedor SMTP.
 
 ### Superficie de escritura pública
 

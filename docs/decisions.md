@@ -158,7 +158,7 @@ Sin confirmación de reserva por email, el negocio no puede operar de forma conf
 
 ### Implementación
 
-Emails enviados de forma asíncrona vía Resend (o equivalente). Los errores de envío no bloquean la operación principal y se registran en `AuditLog`. No hay sistema de plantillas avanzado en el MVP.
+Emails enviados de forma asíncrona mediante un adaptador propio sobre SMTP genérico. Los errores de envío no bloquean la operación principal y se registran en `AuditLog`. No hay sistema de plantillas avanzado en el MVP.
 
 ---
 
@@ -245,7 +245,7 @@ Reintentos de red y dobles clicks son normales. Idempotencia evita duplicar clie
 
 Los límites públicos usan buckets en `PublicRateLimit`, actualizados atómicamente. La IP se transforma con HMAC usando un secreto de entorno antes de persistirla.
 
-El secreto se configura como `PUBLIC_RATE_LIMIT_SECRET`; es independiente de las claves de Supabase y Resend y debe existir en local y Vercel antes de habilitar el portal.
+El secreto se configura como `PUBLIC_RATE_LIMIT_SECRET`; es independiente de las claves de Supabase y del proveedor SMTP y debe existir en local y Vercel antes de habilitar el portal.
 
 ### Motivo
 

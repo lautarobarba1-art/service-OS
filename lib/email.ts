@@ -1,22 +1,17 @@
-import { Resend } from "resend";
+import { sendEmail } from "@/lib/email-provider";
+
+const brandFrom = "ServiceOS";
 
 export async function sendWelcomeEmail(email: string, name: string) {
-  const apiKey = process.env.RESEND_API_KEY;
-
-  if (!apiKey) {
-    console.warn("RESEND_API_KEY no está configurada; se omitió el email de bienvenida.");
-    return;
-  }
-
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from: "ServiceOS <onboarding@resend.dev>",
+  await sendEmail({
     to: email,
     subject: "Bienvenido a ServiceOS",
-    html: `<div style="font-family:Arial,sans-serif;color:#172019"><h1>Tu operación, en orden.</h1><p>Hola ${escapeHtml(name)},</p><p>Tu cuenta de ServiceOS ya está lista. El próximo paso es crear tu organización y configurar su zona horaria.</p></div>`,
+    html: emailLayout(
+      "Tu operación, en orden.",
+      `<p>Hola ${escapeHtml(name)},</p><p>Tu cuenta de ServiceOS ya está lista. El próximo paso es crear tu organización y configurar su zona horaria.</p>`,
+    ),
+    text: `Hola ${name},\n\nTu cuenta de ServiceOS ya está lista. El próximo paso es crear tu organización y configurar su zona horaria.`,
   });
-
-  if (error) throw new Error(error.message);
 }
 
 export async function sendBookingNotification(input: {
@@ -27,20 +22,16 @@ export async function sendBookingNotification(input: {
   organizationName: string;
   localDateTime: string;
 }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.warn("RESEND_API_KEY no está configurada; se omitió el email de reserva.");
-    return;
-  }
   const cancelled = input.kind === "cancelled";
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from: "ServiceOS <onboarding@resend.dev>",
+  await sendEmail({
     to: input.email,
     subject: cancelled ? `Reserva cancelada · ${input.organizationName}` : `Reserva recibida · ${input.organizationName}`,
-    html: `<div style="font-family:Arial,sans-serif;color:#172019"><h1>${cancelled ? "Tu reserva fue cancelada" : "Recibimos tu reserva"}</h1><p>Hola ${escapeHtml(input.customerName)},</p><p><strong>${escapeHtml(input.serviceName)}</strong><br>${escapeHtml(input.localDateTime)}<br>${escapeHtml(input.organizationName)}</p></div>`,
+    html: emailLayout(
+      cancelled ? "Tu reserva fue cancelada" : "Recibimos tu reserva",
+      `<p>Hola ${escapeHtml(input.customerName)},</p><p><strong>${escapeHtml(input.serviceName)}</strong><br>${escapeHtml(input.localDateTime)}<br>${escapeHtml(input.organizationName)}</p>`,
+    ),
+    text: `${cancelled ? "Tu reserva fue cancelada" : "Recibimos tu reserva"}\n\n${input.serviceName}\n${input.localDateTime}\n${input.organizationName}`,
   });
-  if (error) throw new Error(error.message);
 }
 
 export async function sendPublicBookingNotification(input: {
@@ -53,23 +44,20 @@ export async function sendPublicBookingNotification(input: {
   status: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
   manageUrl?: string;
 }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.warn("RESEND_API_KEY no está configurada; se omitió el email de reserva pública.");
-    return;
-  }
   const confirmed = input.status === "CONFIRMED";
   const manageLink = input.manageUrl
     ? `<p><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#274d35;color:#fff;text-decoration:none">Ver mi reserva</a></p>`
     : "";
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from: "ServiceOS <onboarding@resend.dev>",
+
+  await sendEmail({
     to: input.email,
     subject: `${confirmed ? "Reserva confirmada" : "Solicitud recibida"} · ${input.organizationName}`,
-    html: `<div style="font-family:Arial,sans-serif;color:#172019"><h1>${confirmed ? "Tu reserva está confirmada" : "Recibimos tu solicitud"}</h1><p>Hola ${escapeHtml(input.customerName)},</p><p><strong>${escapeHtml(input.serviceName)}</strong><br>${escapeHtml(input.localDateTime)}<br>${escapeHtml(input.organizationName)}</p><p>Referencia: <strong>${escapeHtml(input.referenceCode)}</strong></p>${manageLink}</div>`,
+    html: emailLayout(
+      confirmed ? "Tu reserva está confirmada" : "Recibimos tu solicitud",
+      `<p>Hola ${escapeHtml(input.customerName)},</p><p><strong>${escapeHtml(input.serviceName)}</strong><br>${escapeHtml(input.localDateTime)}<br>${escapeHtml(input.organizationName)}</p><p>Referencia: <strong>${escapeHtml(input.referenceCode)}</strong></p>${manageLink}`,
+    ),
+    text: `${confirmed ? "Tu reserva está confirmada" : "Recibimos tu solicitud"}\n\n${input.serviceName}\n${input.localDateTime}\n${input.organizationName}\nReferencia: ${input.referenceCode}${input.manageUrl ? `\n${input.manageUrl}` : ""}`,
   });
-  if (error) throw new Error(error.message);
 }
 
 export async function sendPublicBookingManagementNotification(input: {
@@ -82,23 +70,24 @@ export async function sendPublicBookingManagementNotification(input: {
   referenceCode: string;
   manageUrl?: string;
 }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.warn("RESEND_API_KEY no está configurada; se omitió el email de gestión pública.");
-    return;
-  }
   const cancelled = input.kind === "cancelled";
   const manageLink = !cancelled && input.manageUrl
     ? `<p><a href="${escapeHtml(input.manageUrl)}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#274d35;color:#fff;text-decoration:none">Ver reserva actualizada</a></p>`
     : "";
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from: "ServiceOS <onboarding@resend.dev>",
+
+  await sendEmail({
     to: input.email,
     subject: `${cancelled ? "Reserva cancelada" : "Reserva reprogramada"} · ${input.organizationName}`,
-    html: `<div style="font-family:Arial,sans-serif;color:#172019"><h1>${cancelled ? "Tu reserva fue cancelada" : "Tu reserva fue reprogramada"}</h1><p>Hola ${escapeHtml(input.customerName)},</p><p><strong>${escapeHtml(input.serviceName)}</strong><br>${escapeHtml(input.localDateTime)}<br>${escapeHtml(input.organizationName)}</p><p>Referencia: <strong>${escapeHtml(input.referenceCode)}</strong></p>${manageLink}</div>`,
+    html: emailLayout(
+      cancelled ? "Tu reserva fue cancelada" : "Tu reserva fue reprogramada",
+      `<p>Hola ${escapeHtml(input.customerName)},</p><p><strong>${escapeHtml(input.serviceName)}</strong><br>${escapeHtml(input.localDateTime)}<br>${escapeHtml(input.organizationName)}</p><p>Referencia: <strong>${escapeHtml(input.referenceCode)}</strong></p>${manageLink}`,
+    ),
+    text: `${cancelled ? "Tu reserva fue cancelada" : "Tu reserva fue reprogramada"}\n\n${input.serviceName}\n${input.localDateTime}\n${input.organizationName}\nReferencia: ${input.referenceCode}${!cancelled && input.manageUrl ? `\n${input.manageUrl}` : ""}`,
   });
-  if (error) throw new Error(error.message);
+}
+
+function emailLayout(title: string, body: string) {
+  return `<div style="font-family:Arial,sans-serif;color:#172019;line-height:1.5"><p style="margin:0 0 16px;color:#2f6b4d;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">${brandFrom}</p><h1 style="margin:0 0 18px;color:#172019;font-size:24px">${escapeHtml(title)}</h1>${body}</div>`;
 }
 
 function escapeHtml(value: string) {

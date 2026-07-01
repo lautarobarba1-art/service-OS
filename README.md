@@ -21,7 +21,23 @@ El callback también admite `token_hash` si en el futuro el proyecto habilita un
 
 Para la auto-reserva pública también configurá `PUBLIC_RATE_LIMIT_SECRET` con un valor aleatorio de al menos 32 caracteres y `APP_URL` con el origen canónico del despliegue (por ejemplo, `https://tu-proyecto.vercel.app`). El enlace público de cada negocio está disponible en `/reservar/[slug]` cuando la organización y al menos un servicio están publicados.
 
-El remitente de bienvenida usa `onboarding@resend.dev` para desarrollo. En producción debe reemplazarse por un dominio verificado en Resend.
+### Email transaccional
+
+ServiceOS usa una capa propia de email sobre SMTP genérico. Esto evita acoplar el producto a un proveedor puntual y permite usar Brevo SMTP, Amazon SES SMTP, Mailgun SMTP, Postmark SMTP u otro servicio compatible.
+
+Variables requeridas para enviar emails:
+
+```env
+EMAIL_PROVIDER=smtp
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_SECURE=false
+EMAIL_FROM="ServiceOS <no-reply@tu-dominio.com>"
+```
+
+Si SMTP no está configurado, la app omite los emails con un warning y no bloquea operaciones como registro o reservas.
 
 ## Seguridad del tenant
 

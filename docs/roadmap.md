@@ -191,7 +191,7 @@ El negocio tiene visibilidad sobre sus operaciones sin salir del panel.
 **Resultado esperado:**
 El negocio comparte un enlace y recibe reservas válidas sin cargarlas manualmente. El cliente final reserva, cancela y reprograma sin cuenta ni contraseña.
 
-**Condición para habilitar en producción:** El remitente de emails debe estar verificado para producción. El dominio de prueba de Resend puede usarse durante desarrollo, pero el portal no se habilita a clientes reales hasta contar con un remitente operativo.
+**Condición para habilitar en producción:** El remitente de emails debe estar verificado para producción. En desarrollo puede omitirse SMTP o usarse un sandbox del proveedor elegido, pero el portal no se habilita a clientes reales hasta contar con un remitente operativo.
 
 ---
 
